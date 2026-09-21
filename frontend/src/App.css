@@ -1,0 +1,106 @@
+ /* =========================================
+    ORAVIA ADMIN LOGIN
+    ========================================= */
+
+.admin-login-page {
+  min-height: 100vh;
+  background: #f5f7fb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.admin-login-card {
+  width: 100%;
+  max-width: 420px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 42px;
+  box-sizing: border-box;
+  box-shadow: 0 8px 30px rgba(15, 23, 42, 0.08);
+}
+
+.admin-login-logo {
+  color: #123c69;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  margin-bottom: 25px;
+}
+
+.admin-login-label {
+  margin: 0 0 8px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+}
+
+.admin-login-card h1 {
+  margin: 0;
+  color: #172033;
+  font-size: 30px;
+}
+
+.admin-login-subtitle {
+  margin: 8px 0 30px;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.login-field {
+  margin-bottom: 18px;
+}
+
+.login-field label {
+  display: block;
+  margin-bottom: 7px;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.login-field input {
+  width: 100%;
+  padding: 12px 13px;
+  box-sizing: border-box;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  transition: 0.2s ease;
+}
+
+.login-field input:focus {
+  border-color: #123c69;
+  box-shadow: 0 0 0 3px rgba(18, 60, 105, 0.08);
+}
+
+.login-error {
+  margin: 0 0 15px;
+  padding: 10px 12px;
+  background: #fef0f0;
+  color: #dc2626;
+  border-radius: 7px;
+  font-size: 13px;
+}
+
+.admin-login-button {
+  width: 100%;
+  border: none;
+  background: #123c69;
+  color: #ffffff;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.admin-login-button:hover {
+  background: #0d2f52;
+}
