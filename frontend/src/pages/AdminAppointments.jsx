@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
 
 function AdminAppointments() {
+  const navigate = useNavigate();
+
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -11,45 +14,94 @@ function AdminAppointments() {
     try {
       setLoading(true);
 
+      const token = localStorage.getItem("oraviaAdminToken");
+
+      if (!token) {
+        navigate("/admin/login");
+        return;
+      }
+
       const response = await axios.get(
-        "http://localhost:5000/api/appointments"
+        "http://localhost:5000/api/appointments",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
       );
 
       setAppointments(response.data);
       setError("");
     } catch (err) {
       console.error("Error fetching appointments:", err);
-      setError("Failed to load appointments.");
+
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        localStorage.removeItem("oraviaAdminToken");
+        localStorage.removeItem("oraviaAdminUser");
+        navigate("/admin/login");
+        return;
+      }
+
+      setError(
+        err.response?.data?.message ||
+          "Failed to load appointments."
+      );
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    const token = localStorage.getItem("oraviaAdminToken");
+
+    if (!token) {
+      navigate("/admin/login");
+      return;
+    }
+
     fetchAppointments();
-  }, []);
+  }, [navigate]);
 
   const updateStatus = async (appointmentId, newStatus) => {
     try {
       setUpdatingId(appointmentId);
       setError("");
 
-      await axios.patch(
+      const token = localStorage.getItem("oraviaAdminToken");
+
+      if (!token) {
+        navigate("/admin/login");
+        return;
+      }
+
+      const response = await axios.patch(
         `http://localhost:5000/api/appointments/${appointmentId}/status`,
         {
           status: newStatus,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         }
       );
 
       setAppointments((currentAppointments) =>
         currentAppointments.map((appointment) =>
           appointment._id === appointmentId
-            ? { ...appointment, status: newStatus }
+            ? response.data.appointment
             : appointment
         )
       );
     } catch (err) {
       console.error("Error updating appointment status:", err);
+
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        localStorage.removeItem("oraviaAdminToken");
+        localStorage.removeItem("oraviaAdminUser");
+        navigate("/admin/login");
+        return;
+      }
 
       setError(
         err.response?.data?.message ||
@@ -58,6 +110,13 @@ function AdminAppointments() {
     } finally {
       setUpdatingId(null);
     }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("oraviaAdminToken");
+    localStorage.removeItem("oraviaAdminUser");
+
+    navigate("/admin/login");
   };
 
   const pendingCount = appointments.filter(
@@ -102,12 +161,21 @@ function AdminAppointments() {
           <p>Dental Clinic Management</p>
         </div>
 
-        <button
-          onClick={fetchAppointments}
-          className="refresh-button"
-        >
-          ↻ Refresh
-        </button>
+        <div>
+          <button
+            onClick={fetchAppointments}
+            className="refresh-button"
+          >
+            ↻ Refresh
+          </button>
+
+          <button
+            onClick={handleLogout}
+            className="secondary-button"
+          >
+            Sign out
+          </button>
+        </div>
       </header>
 
 
@@ -220,12 +288,14 @@ function AdminAppointments() {
 
         {/* Appointment Table */}
         {!loading &&
+          !error &&
           appointments.length > 0 && (
             <div className="appointments-section">
 
               <div className="table-header">
                 <div>
                   <h3>All Appointments</h3>
+
                   <p>
                     View and manage patient bookings
                   </p>

@@ -1,72 +1,63 @@
-import { useState } from "react";
-import axios from "axios";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+
+import Home from "./pages/Home.jsx";
+import Services from "./pages/Services.jsx";
+import Clinics from "./pages/Clinics.jsx";
+import Booking from "./pages/Booking.jsx";
+import Login from "./pages/Login.jsx";
+import Register from "./pages/Register.jsx";
+import PatientDashboard from "./pages/PatientDashboard.jsx";
+
 import AdminLogin from "./pages/AdminLogin.jsx";
 import AdminAppointments from "./pages/AdminAppointments.jsx";
 
 function App() {
-  const isAdmin = window.location.pathname === "/admin";
+  return (
+    <BrowserRouter>
+      <Routes>
 
-  const [formData, setFormData] = useState({
-    patientName: "",
-    phone: "",
-    email: "",
-    treatment: "",
-    appointmentDate: "",
-    appointmentTime: "",
-    symptoms: "",
-  });
+        {/* =========================
+            PUBLIC ORAVIA
+        ========================== */}
 
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+        <Route path="/" element={<Home />} />
 
-  if (isAdmin) {
-    return <AdminAppointments />;
-  }
+        <Route path="/services" element={<Services />} />
 
-  
+        <Route path="/clinics" element={<Clinics />} />
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
+        <Route path="/booking" element={<Booking />} />
 
-    setFormData({
-      ...formData,
-      [name]: value,
-    });
-  };
+        {/* =========================
+            PATIENT
+        ========================== */}
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+        <Route path="/login" element={<Login />} />
 
-    setMessage("");
-    setError("");
+        <Route path="/register" element={<Register />} />
 
-    try {
-      await axios.post(
-        "http://localhost:5000/api/appointments",
-        formData
-      );
+        <Route
+          path="/dashboard"
+          element={<PatientDashboard />}
+        />
 
-      setMessage("Appointment booked successfully!");
+        {/* =========================
+            ADMIN
+        ========================== */}
 
-      setFormData({
-        patientName: "",
-        phone: "",
-        email: "",
-        treatment: "",
-        appointmentDate: "",
-        appointmentTime: "",
-        symptoms: "",
-      });
-    } catch (err) {
-      console.error("Booking error:", err);
+        <Route
+          path="/admin/login"
+          element={<AdminLogin />}
+        />
 
-      setError(
-        err.response?.data?.message ||
-          "Failed to book appointment. Please try again."
-      );
-    }
-  };
+        <Route
+          path="/admin/dashboard"
+          element={<AdminAppointments />}
+        />
 
-  // Your existing return (...) remains unchanged
+      </Routes>
+    </BrowserRouter>
+  );
 }
+
 export default App;

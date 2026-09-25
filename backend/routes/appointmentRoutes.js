@@ -1,23 +1,71 @@
 const express = require("express");
 const Appointment = require("../models/Appointment");
-
+const User = require("../models/User");
+const authMiddleware = require("../middleware/authMiddleware");
+const adminMiddleware = require("../middleware/adminMiddleware");
 
 const router = express.Router();
+
 const {
   sendAppointmentEmail,
   sendStatusUpdateEmail,
 } = require("../utils/sendEmail");
 
-// Create a new appointment
-router.post("/", async (req, res) => {
+
+// ======================================================
+// CREATE APPOINTMENT - LOGGED-IN PATIENT
+// ======================================================
+
+router.post("/", authMiddleware, async (req, res) => {
   try {
-    const appointment = new Appointment(req.body);
+    const {
+      treatment,
+      appointmentDate,
+      appointmentTime,
+      symptoms,
+    } = req.body;
+
+    if (
+      !treatment ||
+      !appointmentDate ||
+      !appointmentTime
+    ) {
+      return res.status(400).json({
+        message:
+          "Treatment, appointment date, and appointment time are required",
+      });
+    }
+
+    const patient = await User.findById(req.user.id).select(
+      "-password"
+    );
+
+    if (!patient) {
+      return res.status(404).json({
+        message: "Patient account not found",
+      });
+    }
+
+    const appointment = new Appointment({
+      patient: patient._id,
+      patientName: patient.name,
+      phone: patient.phone,
+      email: patient.email,
+      treatment,
+      appointmentDate,
+      appointmentTime,
+      symptoms: symptoms || "",
+    });
 
     const savedAppointment = await appointment.save();
-    try{
+
+    try {
       await sendAppointmentEmail(savedAppointment);
-    }catch (emailError) {
-      console.error("Email sending error:", emailError.message);
+    } catch (emailError) {
+      console.error(
+        "Email sending error:",
+        emailError.message
+      );
     }
 
     res.status(201).json({
@@ -25,7 +73,10 @@ router.post("/", async (req, res) => {
       appointment: savedAppointment,
     });
   } catch (error) {
-    console.error("Appointment booking error:", error.message);
+    console.error(
+      "Appointment booking error:",
+      error.message
+    );
 
     res.status(500).json({
       message: "Failed to book appointment",
@@ -34,16 +85,117 @@ router.post("/", async (req, res) => {
   }
 });
 
-// Get all appointments
-router.get("/", async (req, res) => {
+
+// ======================================================
+// GET MY APPOINTMENTS - LOGGED-IN PATIENT ONLY
+// ======================================================
+
+router.get("/mine", authMiddleware, async (req, res) => {
   try {
-    const appointments = await Appointment.find().sort({
-      createdAt: -1,
+    const appointments = await Appointment.find({
+      patient: req.user.id,
+    }).sort({
+      appointmentDate: 1,
     });
 
     res.status(200).json(appointments);
   } catch (error) {
-    console.error("Fetching appointments error:", error.message);
+    console.error(
+      "Fetching patient appointments error:",
+      error.message
+    );
+
+    res.status(500).json({
+      message: "Failed to fetch your appointments",
+    });
+  }
+});
+
+
+// ======================================================
+// CANCEL MY APPOINTMENT
+// ======================================================
+
+router.patch(
+  "/:id/cancel",
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const appointment = await Appointment.findOne({
+        _id: req.params.id,
+        patient: req.user.id,
+      });
+
+      if (!appointment) {
+        return res.status(404).json({
+          message:
+            "Appointment not found or does not belong to you",
+        });
+      }
+
+      if (appointment.status === "Completed") {
+        return res.status(400).json({
+          message:
+            "Completed appointments cannot be cancelled",
+        });
+      }
+
+      if (appointment.status === "Cancelled") {
+        return res.status(400).json({
+          message: "This appointment is already cancelled",
+        });
+      }
+
+      appointment.status = "Cancelled";
+      appointment.cancelledBy = "patient";
+
+      const updatedAppointment = await appointment.save();
+
+      try {
+        await sendStatusUpdateEmail(updatedAppointment);
+      } catch (emailError) {
+        console.error(
+          "Status update email error:",
+          emailError.message
+        );
+      }
+
+      res.status(200).json({
+        message: "Appointment cancelled successfully",
+        appointment: updatedAppointment,
+      });
+    } catch (error) {
+      console.error(
+        "Appointment cancellation error:",
+        error.message
+      );
+
+      res.status(500).json({
+        message: "Failed to cancel appointment",
+      });
+    }
+  }
+);
+
+
+// ======================================================
+// GET ALL APPOINTMENTS - TEMPORARILY FOR ADMIN
+// ======================================================
+
+router.get("/", adminMiddleware, async (req, res) => {
+  try {
+    const appointments = await Appointment.find()
+      .populate("patient", "name phone email")
+      .sort({
+        createdAt: -1,
+      });
+
+    res.status(200).json(appointments);
+  } catch (error) {
+    console.error(
+      "Fetching appointments error:",
+      error.message
+    );
 
     res.status(500).json({
       message: "Failed to fetch appointments",
@@ -51,8 +203,13 @@ router.get("/", async (req, res) => {
     });
   }
 });
-// Update appointment status
-router.patch("/:id/status", async (req, res) => {
+
+
+// ======================================================
+// UPDATE APPOINTMENT STATUS - ADMIN
+// ======================================================
+
+router.patch("/:id/status", adminMiddleware, async (req, res) => {
   try {
     const { status } = req.body;
 
@@ -69,46 +226,36 @@ router.patch("/:id/status", async (req, res) => {
       });
     }
 
-    // Find the appointment first
-    const existingAppointment = await Appointment.findById(
-      req.params.id
-    );
+    const updateData = {
+      status,
+    };
 
-    if (!existingAppointment) {
+    if (status === "Cancelled") {
+      updateData.cancelledBy = "admin";
+    } else {
+      updateData.cancelledBy = null;
+    }
+
+    const updatedAppointment =
+      await Appointment.findByIdAndUpdate(
+        req.params.id,
+        updateData,
+        { new: true }
+      );
+
+    if (!updatedAppointment) {
       return res.status(404).json({
         message: "Appointment not found",
       });
     }
 
-    // Don't send another email if status hasn't changed
-    if (existingAppointment.status === status) {
-      return res.status(400).json({
-        message: `Appointment is already ${status}`,
-      });
-    }
-
-    // Update status
-    existingAppointment.status = status;
-
-    const updatedAppointment = await existingAppointment.save();
-
-    // Send status email
-    if (
-      status === "Confirmed" ||
-      status === "Cancelled" ||
-      status === "Completed"
-    ) {
-      try {
-        await sendStatusUpdateEmail(updatedAppointment);
-        console.log(
-          `Status email sent for ${status} appointment`
-        );
-      } catch (emailError) {
-        console.error(
-          "Status email failed:",
-          emailError.message
-        );
-      }
+    try {
+      await sendStatusUpdateEmail(updatedAppointment);
+    } catch (emailError) {
+      console.error(
+        "Status update email error:",
+        emailError.message
+      );
     }
 
     res.status(200).json({
@@ -123,9 +270,9 @@ router.patch("/:id/status", async (req, res) => {
 
     res.status(500).json({
       message: "Failed to update appointment status",
-      error: error.message,
     });
   }
 });
+
 
 module.exports = router;
