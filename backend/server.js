@@ -6,6 +6,7 @@ const mongoose = require("mongoose");
 const appointmentRoutes = require("./routes/appointmentRoutes");
 const medicalRecordRoutes = require("./routes/medicalRecordRoutes");
 const authRoutes = require("./routes/authRoutes");
+const queueRoutes = require("./routes/queueRoutes");
 
 const dns = require("dns");
 
@@ -28,6 +29,7 @@ app.use(express.json());
 
 app.use("/api/appointments", appointmentRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/queue", queueRoutes);
 app.use("/api/medical-records", medicalRecordRoutes);
 
 

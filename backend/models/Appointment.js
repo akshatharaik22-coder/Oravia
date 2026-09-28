@@ -48,6 +48,40 @@ const appointmentSchema = new mongoose.Schema(
       enum: ["Pending", "Confirmed", "Completed", "Cancelled"],
       default: "Pending",
     },
+    tokenNumber: {
+      type: Number,
+      default: null,
+    },
+
+    queueStatus: {
+      type: String,
+      enum: [
+        "Waiting",
+        "Called",
+        "In Consultation",
+        "Completed",
+        "Skipped",
+      ],
+      default: "Waiting",
+    },
+    arrivalTime: {
+      type: Date,
+      default: null,
+    },
+    calledTime: {
+      type: Date,
+      default: null,
+    },
+
+    consultationStartTime: {
+      type: Date,
+      default: null,
+    },
+
+    consultationEndTime: {
+      type: Date,
+      default: null,
+    },
     cancelledBy: {
       type: String,
       enum: ["patient", "admin"],

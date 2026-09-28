@@ -18,3 +18,5 @@ backend/dist/
 # Logs
 npm-debug.log*
 yarn-debug.log*
+
+backend/createAdmin.js

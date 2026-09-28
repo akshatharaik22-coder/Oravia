@@ -7,6 +7,7 @@ function PatientDashboard() {
 
   const [user, setUser] = useState(null);
   const [appointments, setAppointments] = useState([]);
+  const [medicalRecords, setMedicalRecords] = useState([]);
 
   const [loading, setLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState(null);
@@ -24,7 +25,7 @@ function PatientDashboard() {
 
     const fetchDashboardData = async () => {
       try {
-        const [profileResponse, appointmentsResponse] =
+        const [profileResponse, appointmentsResponse, medicalRecordsResponse] =
           await Promise.all([
             axios.get(
               "http://localhost:5000/api/auth/me",
@@ -43,12 +44,25 @@ function PatientDashboard() {
                 },
               }
             ),
+
+            axios.get(
+              "http://localhost:5000/api/medical-records/mine",
+              {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
+              }
+            ),
           ]);
 
         setUser(profileResponse.data.user);
 
         setAppointments(
           appointmentsResponse.data
+        );
+
+        setMedicalRecords(
+          medicalRecordsResponse.data
         );
 
         localStorage.setItem(
@@ -75,7 +89,6 @@ function PatientDashboard() {
 
     fetchDashboardData();
   }, [navigate]);
-
 
   const handleCancel = async (appointmentId) => {
     const confirmed = window.confirm(
@@ -125,14 +138,12 @@ function PatientDashboard() {
     }
   };
 
-
   const handleLogout = () => {
     localStorage.removeItem("oraviaToken");
     localStorage.removeItem("oraviaUser");
 
     navigate("/login");
   };
-
 
   const upcomingAppointments =
     appointments.filter(
@@ -141,16 +152,15 @@ function PatientDashboard() {
         appointment.status !== "Cancelled"
     );
 
-  const appointmentHistory=
-  appointments.filter(
-    (appointment) =>
-      appointment.status === "Completed" ||
-      (
-        appointment.status === "Cancelled" &&
-        appointment.cancelledBy === "admin"
-      )
-  );
-
+  const appointmentHistory =
+    appointments.filter(
+      (appointment) =>
+        appointment.status === "Completed" ||
+        (
+          appointment.status === "Cancelled" &&
+          appointment.cancelledBy === "admin"
+        )
+    );
 
   const formatDate = (date) => {
     return new Date(date).toLocaleDateString(
@@ -163,7 +173,6 @@ function PatientDashboard() {
     );
   };
 
-
   if (loading) {
     return (
       <main className="dashboard-page">
@@ -175,7 +184,6 @@ function PatientDashboard() {
       </main>
     );
   }
-
 
   return (
     <main className="dashboard-page">
@@ -206,20 +214,17 @@ function PatientDashboard() {
 
       </section>
 
-
       {error && (
         <p className="form-error">
           {error}
         </p>
       )}
 
-
       {success && (
         <p className="form-success-message">
           {success}
         </p>
       )}
-
 
       <section className="dashboard-grid">
 
@@ -242,7 +247,6 @@ function PatientDashboard() {
 
         </article>
 
-
         <article className="dashboard-card">
 
           <span className="dashboard-card-label">
@@ -262,29 +266,26 @@ function PatientDashboard() {
 
         </article>
 
-
         <article className="dashboard-card">
 
           <span className="dashboard-card-label">
-            PROFILE
+            MEDICAL RECORDS
           </span>
 
           <h2>
-            {user?.name}
+            {medicalRecords.length}
           </h2>
 
           <p>
-            {user?.email}
-          </p>
-
-          <p>
-            {user?.phone}
+            Clinical record
+            {medicalRecords.length !== 1
+              ? "s"
+              : ""}
           </p>
 
         </article>
 
       </section>
-
 
       <section className="dashboard-section">
 
@@ -308,7 +309,6 @@ function PatientDashboard() {
           </button>
 
         </div>
-
 
         {upcomingAppointments.length === 0 ? (
 
@@ -368,7 +368,6 @@ function PatientDashboard() {
 
                   </div>
 
-
                   <div className="appointment-side">
 
                     <span
@@ -408,14 +407,13 @@ function PatientDashboard() {
 
       </section>
 
-
       <section className="dashboard-section">
 
         <div className="dashboard-section-header">
 
           <div>
             <p className="section-label">
-              HISTORY
+              APPOINTMENT HISTORY
             </p>
 
             <h2>
@@ -424,7 +422,6 @@ function PatientDashboard() {
           </div>
 
         </div>
-
 
         {appointmentHistory.length === 0 ? (
 
@@ -435,8 +432,8 @@ function PatientDashboard() {
             </h3>
 
             <p>
-              Completed or cancelled appointments will
-              appear here.
+              Completed visits and appointments
+              cancelled by the clinic will appear here.
             </p>
 
           </div>
@@ -471,7 +468,6 @@ function PatientDashboard() {
 
                   </div>
 
-
                   <div className="appointment-side">
 
                     <span
@@ -493,6 +489,148 @@ function PatientDashboard() {
 
       </section>
 
+      <section className="dashboard-section">
+
+        <div className="dashboard-section-header">
+
+          <div>
+            <p className="section-label">
+              CLINICAL CARE
+            </p>
+
+            <h2>
+              Medical history
+            </h2>
+
+            <p>
+              View treatment details and clinical information
+              recorded by the ORAVIA care team.
+            </p>
+          </div>
+
+        </div>
+
+        {medicalRecords.length === 0 ? (
+
+          <div className="dashboard-empty">
+
+            <h3>
+              No medical records yet
+            </h3>
+
+            <p>
+              Your clinical records will appear here after
+              your care team records a completed visit.
+            </p>
+
+          </div>
+
+        ) : (
+
+          <div className="medical-record-list">
+
+            {medicalRecords.map(
+              (record) => (
+
+                <article
+                  className="medical-record-card"
+                  key={record._id}
+                >
+
+                  <div className="medical-record-header">
+
+                    <div>
+                      <p className="section-label">
+                        TREATMENT
+                      </p>
+
+                      <h3>
+                        {record.treatment}
+                      </h3>
+                    </div>
+
+                    <div className="medical-record-date">
+
+                      <span>
+                        Visit date
+                      </span>
+
+                      <strong>
+                        {formatDate(
+                          record.visitDate
+                        )}
+                      </strong>
+
+                    </div>
+
+                  </div>
+
+                  {record.dentalNotes && (
+                    <div className="medical-record-detail">
+
+                      <span>
+                        Dental notes
+                      </span>
+
+                      <p>
+                        {record.dentalNotes}
+                      </p>
+
+                    </div>
+                  )}
+
+                  {record.medications && (
+                    <div className="medical-record-detail">
+
+                      <span>
+                        Medications
+                      </span>
+
+                      <p>
+                        {record.medications}
+                      </p>
+
+                    </div>
+                  )}
+
+                  {record.prescription && (
+                    <div className="medical-record-detail">
+
+                      <span>
+                        Prescription
+                      </span>
+
+                      <p>
+                        {record.prescription}
+                      </p>
+
+                    </div>
+                  )}
+
+                  {record.additionalNotes && (
+                    <div className="medical-record-detail">
+
+                      <span>
+                        Additional notes
+                      </span>
+
+                      <p>
+                        {record.additionalNotes}
+                      </p>
+
+                    </div>
+                  )}
+
+                </article>
+
+              )
+            )}
+
+          </div>
+
+        )}
+
+      </section>
 
       <section className="dashboard-profile">
 
