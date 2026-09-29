@@ -16,7 +16,7 @@ function AdminAppointments() {
   const [recordSuccess, setRecordSuccess] = useState("");
 
   const [updatingId, setUpdatingId] = useState(null);
-  const [checkingInId, setCheckingInId] = useState(null);
+  const [queueActionId, setQueueActionId] = useState(null);
   const [savingRecord, setSavingRecord] = useState(false);
 
   const [recordForm, setRecordForm] = useState({
@@ -29,6 +29,10 @@ function AdminAppointments() {
     prescription: "",
     additionalNotes: "",
   });
+
+  /* =========================================================
+     FETCH APPOINTMENTS
+     ========================================================= */
 
   const fetchAppointments = async () => {
     try {
@@ -61,6 +65,7 @@ function AdminAppointments() {
       ) {
         localStorage.removeItem("oraviaAdminToken");
         localStorage.removeItem("oraviaAdminUser");
+
         navigate("/admin/login");
         return;
       }
@@ -73,6 +78,10 @@ function AdminAppointments() {
       setLoading(false);
     }
   };
+
+  /* =========================================================
+     FETCH MEDICAL RECORDS
+     ========================================================= */
 
   const fetchMedicalRecords = async () => {
     try {
@@ -97,10 +106,7 @@ function AdminAppointments() {
       setMedicalRecords(response.data);
       setRecordError("");
     } catch (err) {
-      console.error(
-        "Error fetching medical records:",
-        err
-      );
+      console.error("Error fetching medical records:", err);
 
       if (
         err.response?.status === 401 ||
@@ -108,6 +114,7 @@ function AdminAppointments() {
       ) {
         localStorage.removeItem("oraviaAdminToken");
         localStorage.removeItem("oraviaAdminUser");
+
         navigate("/admin/login");
         return;
       }
@@ -121,6 +128,10 @@ function AdminAppointments() {
     }
   };
 
+  /* =========================================================
+     INITIAL LOAD
+     ========================================================= */
+
   useEffect(() => {
     const token = localStorage.getItem("oraviaAdminToken");
 
@@ -133,16 +144,16 @@ function AdminAppointments() {
     fetchMedicalRecords();
   }, [navigate]);
 
-  const updateStatus = async (
-    appointmentId,
-    newStatus
-  ) => {
+  /* =========================================================
+     UPDATE APPOINTMENT STATUS
+     ========================================================= */
+
+  const updateStatus = async (appointmentId, newStatus) => {
     try {
       setUpdatingId(appointmentId);
       setError("");
 
-      const token =
-        localStorage.getItem("oraviaAdminToken");
+      const token = localStorage.getItem("oraviaAdminToken");
 
       if (!token) {
         navigate("/admin/login");
@@ -164,7 +175,10 @@ function AdminAppointments() {
       setAppointments((currentAppointments) =>
         currentAppointments.map((appointment) =>
           appointment._id === appointmentId
-            ? response.data.appointment
+            ? {
+                ...appointment,
+                ...response.data.appointment,
+              }
             : appointment
         )
       );
@@ -180,6 +194,7 @@ function AdminAppointments() {
       ) {
         localStorage.removeItem("oraviaAdminToken");
         localStorage.removeItem("oraviaAdminUser");
+
         navigate("/admin/login");
         return;
       }
@@ -192,60 +207,187 @@ function AdminAppointments() {
       setUpdatingId(null);
     }
   };
-  const handleCheckIn = async (appointmentId) => {
-  try {
-    setCheckingInId(appointmentId);
-    setError("");
 
-    const token =
-      localStorage.getItem("oraviaAdminToken");
+  /* =========================================================
+     GIVE TOKEN
+     ========================================================= */
 
-    if (!token) {
-      navigate("/admin/login");
-      return;
-    }
+  const handleGiveToken = async (appointmentId) => {
+    try {
+      setQueueActionId(appointmentId);
+      setError("");
 
-    const response = await axios.patch(
-      `http://localhost:5000/api/queue/${appointmentId}/check-in`,
-      {},
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+      const token = localStorage.getItem("oraviaAdminToken");
+
+      if (!token) {
+        navigate("/admin/login");
+        return;
       }
-    );
 
-    setAppointments((currentAppointments) =>
-      currentAppointments.map((appointment) =>
-        appointment._id === appointmentId
-          ? response.data.appointment
-          : appointment
-      )
-    );
-  } catch (err) {
-    console.error(
-      "Error checking in patient:",
-      err
-    );
+      const response = await axios.patch(
+        `http://localhost:5000/api/queue/${appointmentId}/give-token`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
-    if (
-      err.response?.status === 401 ||
-      err.response?.status === 403
-    ) {
-      localStorage.removeItem("oraviaAdminToken");
-      localStorage.removeItem("oraviaAdminUser");
-      navigate("/admin/login");
-      return;
+      setAppointments((currentAppointments) =>
+        currentAppointments.map((appointment) =>
+          appointment._id === appointmentId
+            ? {
+                ...appointment,
+                ...response.data.appointment,
+              }
+            : appointment
+        )
+      );
+    } catch (err) {
+      console.error("Error giving token:", err);
+
+      if (
+        err.response?.status === 401 ||
+        err.response?.status === 403
+      ) {
+        localStorage.removeItem("oraviaAdminToken");
+        localStorage.removeItem("oraviaAdminUser");
+
+        navigate("/admin/login");
+        return;
+      }
+
+      setError(
+        err.response?.data?.message ||
+          "Failed to generate token."
+      );
+    } finally {
+      setQueueActionId(null);
     }
+  };
 
-    setError(
-      err.response?.data?.message ||
-        "Failed to check in patient."
-    );
-  } finally {
-    setCheckingInId(null);
-  }
-};
+  /* =========================================================
+     CALL TOKEN
+     ========================================================= */
+
+  const handleCallToken = async (appointmentId) => {
+    try {
+      setQueueActionId(appointmentId);
+      setError("");
+
+      const token = localStorage.getItem("oraviaAdminToken");
+
+      if (!token) {
+        navigate("/admin/login");
+        return;
+      }
+
+      const response = await axios.patch(
+        `http://localhost:5000/api/queue/${appointmentId}/call`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      setAppointments((currentAppointments) =>
+        currentAppointments.map((appointment) =>
+          appointment._id === appointmentId
+            ? {
+                ...appointment,
+                ...response.data.appointment,
+              }
+            : appointment
+        )
+      );
+    } catch (err) {
+      console.error("Error calling token:", err);
+
+      if (
+        err.response?.status === 401 ||
+        err.response?.status === 403
+      ) {
+        localStorage.removeItem("oraviaAdminToken");
+        localStorage.removeItem("oraviaAdminUser");
+
+        navigate("/admin/login");
+        return;
+      }
+
+      setError(
+        err.response?.data?.message ||
+          "Failed to call token."
+      );
+    } finally {
+      setQueueActionId(null);
+    }
+  };
+
+  /* =========================================================
+     CHECK IN
+     ========================================================= */
+
+  const handleCheckIn = async (appointmentId) => {
+    try {
+      setQueueActionId(appointmentId);
+      setError("");
+
+      const token = localStorage.getItem("oraviaAdminToken");
+
+      if (!token) {
+        navigate("/admin/login");
+        return;
+      }
+
+      const response = await axios.patch(
+        `http://localhost:5000/api/queue/${appointmentId}/check-in`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      setAppointments((currentAppointments) =>
+        currentAppointments.map((appointment) =>
+          appointment._id === appointmentId
+            ? {
+                ...appointment,
+                ...response.data.appointment,
+              }
+            : appointment
+        )
+      );
+    } catch (err) {
+      console.error("Error checking in patient:", err);
+
+      if (
+        err.response?.status === 401 ||
+        err.response?.status === 403
+      ) {
+        localStorage.removeItem("oraviaAdminToken");
+        localStorage.removeItem("oraviaAdminUser");
+
+        navigate("/admin/login");
+        return;
+      }
+
+      setError(
+        err.response?.data?.message ||
+          "Failed to check in patient."
+      );
+    } finally {
+      setQueueActionId(null);
+    }
+  };
+
+  /* =========================================================
+     LOGOUT
+     ========================================================= */
 
   const handleLogout = () => {
     localStorage.removeItem("oraviaAdminToken");
@@ -253,6 +395,10 @@ function AdminAppointments() {
 
     navigate("/admin/login");
   };
+
+  /* =========================================================
+     MEDICAL RECORD FORM
+     ========================================================= */
 
   const handleRecordChange = (event) => {
     const { name, value } = event.target;
@@ -269,17 +415,23 @@ function AdminAppointments() {
   const handlePatientChange = (event) => {
     const patientId = event.target.value;
 
-    const selectedAppointment =
-      appointments.find(
-        (appointment) =>
-          appointment.patient?._id === patientId
-      );
+    const selectedAppointment = appointments.find(
+      (appointment) =>
+        appointment.patient?._id === patientId
+    );
 
     setRecordForm((previousForm) => ({
       ...previousForm,
       patient: patientId,
-      appointment:
-        selectedAppointment?._id || "",
+      appointment: selectedAppointment?._id || "",
+      treatment: selectedAppointment?.treatment || "",
+      visitDate: selectedAppointment?.appointmentDate
+        ? new Date(
+            selectedAppointment.appointmentDate
+          )
+            .toISOString()
+            .split("T")[0]
+        : "",
     }));
 
     setRecordError("");
@@ -289,11 +441,10 @@ function AdminAppointments() {
   const handleAppointmentChange = (event) => {
     const appointmentId = event.target.value;
 
-    const selectedAppointment =
-      appointments.find(
-        (appointment) =>
-          appointment._id === appointmentId
-      );
+    const selectedAppointment = appointments.find(
+      (appointment) =>
+        appointment._id === appointmentId
+    );
 
     setRecordForm((previousForm) => ({
       ...previousForm,
@@ -315,6 +466,10 @@ function AdminAppointments() {
     setRecordSuccess("");
   };
 
+  /* =========================================================
+     CREATE MEDICAL RECORD
+     ========================================================= */
+
   const handleCreateRecord = async (event) => {
     event.preventDefault();
 
@@ -329,14 +484,16 @@ function AdminAppointments() {
       setRecordError(
         "Patient, treatment, and visit date are required."
       );
+
       return;
     }
 
     try {
       setSavingRecord(true);
 
-      const token =
-        localStorage.getItem("oraviaAdminToken");
+      const token = localStorage.getItem(
+        "oraviaAdminToken"
+      );
 
       if (!token) {
         navigate("/admin/login");
@@ -382,8 +539,13 @@ function AdminAppointments() {
         err.response?.status === 401 ||
         err.response?.status === 403
       ) {
-        localStorage.removeItem("oraviaAdminToken");
-        localStorage.removeItem("oraviaAdminUser");
+        localStorage.removeItem(
+          "oraviaAdminToken"
+        );
+        localStorage.removeItem(
+          "oraviaAdminUser"
+        );
+
         navigate("/admin/login");
         return;
       }
@@ -396,6 +558,10 @@ function AdminAppointments() {
       setSavingRecord(false);
     }
   };
+
+  /* =========================================================
+     COUNTS
+     ========================================================= */
 
   const pendingCount = appointments.filter(
     (appointment) =>
@@ -417,6 +583,10 @@ function AdminAppointments() {
       appointment.status === "Cancelled"
   ).length;
 
+  /* =========================================================
+     STATUS STYLE
+     ========================================================= */
+
   const getStatusClass = (status) => {
     switch (status) {
       case "Confirmed":
@@ -433,6 +603,10 @@ function AdminAppointments() {
     }
   };
 
+  /* =========================================================
+     PATIENT / APPOINTMENT LISTS
+     ========================================================= */
+
   const uniquePatients = appointments.filter(
     (appointment, index, array) =>
       appointment.patient?._id &&
@@ -446,19 +620,31 @@ function AdminAppointments() {
   const completedAppointments =
     appointments.filter(
       (appointment) =>
-        appointment.status === "Completed"
+        appointment.status === "Completed" &&
+        appointment.patient?._id
     );
+
+  /* =========================================================
+     RENDER
+     ========================================================= */
 
   return (
     <div className="admin-page">
 
+      {/* HEADER */}
+
       <header className="admin-header">
+
         <div>
           <h1>ORAVIA</h1>
-          <p>Dental Clinic Management</p>
+
+          <p>
+            Dental Clinic Management
+          </p>
         </div>
 
         <div>
+
           <button
             onClick={() => {
               fetchAppointments();
@@ -475,77 +661,112 @@ function AdminAppointments() {
           >
             Sign out
           </button>
+
         </div>
+
       </header>
 
       <main className="admin-content">
 
+        {/* PAGE TITLE */}
+
         <div className="dashboard-title">
+
           <div>
+
             <p className="section-label">
               CLINIC MANAGEMENT
             </p>
 
-            <h2>Appointments</h2>
+            <h2>
+              Appointments
+            </h2>
 
             <p className="dashboard-subtitle">
-              Manage and track patient appointments.
+              Manage bookings, patient arrivals,
+              and today's clinic queue.
             </p>
+
           </div>
 
           <div className="appointment-count">
             {appointments.length} Total
           </div>
+
         </div>
+
+        {/* SUMMARY CARDS */}
 
         <div className="summary-cards">
 
           <div className="summary-card total-card">
-            <div className="summary-icon">📋</div>
+
+            <div className="summary-icon">
+              📋
+            </div>
 
             <div>
               <p>Total Appointments</p>
               <h3>{appointments.length}</h3>
             </div>
+
           </div>
 
           <div className="summary-card pending-card">
-            <div className="summary-icon">⏳</div>
+
+            <div className="summary-icon">
+              ⏳
+            </div>
 
             <div>
               <p>Pending</p>
               <h3>{pendingCount}</h3>
             </div>
+
           </div>
 
           <div className="summary-card confirmed-card">
-            <div className="summary-icon">✓</div>
+
+            <div className="summary-icon">
+              ✓
+            </div>
 
             <div>
               <p>Confirmed</p>
               <h3>{confirmedCount}</h3>
             </div>
+
           </div>
 
           <div className="summary-card completed-card">
-            <div className="summary-icon">✓</div>
+
+            <div className="summary-icon">
+              ✓
+            </div>
 
             <div>
               <p>Completed</p>
               <h3>{completedCount}</h3>
             </div>
+
           </div>
 
           <div className="summary-card cancelled-card">
-            <div className="summary-icon">×</div>
+
+            <div className="summary-icon">
+              ×
+            </div>
 
             <div>
               <p>Cancelled</p>
               <h3>{cancelledCount}</h3>
             </div>
+
           </div>
 
         </div>
+
+        {/* MESSAGES */}
 
         {loading && (
           <p className="admin-message">
@@ -559,32 +780,48 @@ function AdminAppointments() {
           </p>
         )}
 
+        {/* EMPTY APPOINTMENTS */}
+
         {!loading &&
           !error &&
           appointments.length === 0 && (
             <div className="empty-state">
-              <h3>No appointments yet</h3>
+
+              <h3>
+                No appointments yet
+              </h3>
 
               <p>
-                Patient appointments will appear here
-                after they are booked.
+                Patient appointments will appear
+                here after they are booked.
               </p>
+
             </div>
           )}
+
+        {/* APPOINTMENTS */}
 
         {!loading &&
           !error &&
           appointments.length > 0 && (
+
             <div className="appointments-section">
 
               <div className="table-header">
+
                 <div>
-                  <h3>All Appointments</h3>
+
+                  <h3>
+                    All Appointments
+                  </h3>
 
                   <p>
-                    View and manage patient bookings
+                    Manage appointment status
+                    and patient queue flow.
                   </p>
+
                 </div>
+
               </div>
 
               <div className="appointments-table-container">
@@ -592,156 +829,333 @@ function AdminAppointments() {
                 <table className="appointments-table">
 
                   <thead>
+
                     <tr>
+
                       <th>Patient</th>
+
                       <th>Contact</th>
+
                       <th>Treatment</th>
+
                       <th>Date</th>
+
                       <th>Time</th>
+
                       <th>Status</th>
+
+                      <th>Queue</th>
+
                       <th>Actions</th>
+
                     </tr>
+
                   </thead>
 
                   <tbody>
 
                     {appointments.map(
-                      (appointment) => (
+                      (appointment) => {
 
-                        <tr
-                          key={appointment._id}
-                        >
+                        const isProcessing =
+                          queueActionId ===
+                          appointment._id;
 
-                          <td>
-                            <strong>
-                              {
-                                appointment.patientName
-                              }
-                            </strong>
-                          </td>
-
-                          <td>
-                            <div>
-                              {
-                                appointment.phone
-                              }
-                            </div>
-
-                            <small>
-                              {
-                                appointment.email
-                              }
-                            </small>
-                          </td>
-
-                          <td>
-                            {
-                              appointment.treatment
+                        return (
+                          <tr
+                            key={
+                              appointment._id
                             }
-                          </td>
+                          >
 
-                          <td>
-                            {new Date(
-                              appointment.appointmentDate
-                            ).toLocaleDateString(
-                              "en-IN"
-                            )}
-                          </td>
+                            {/* PATIENT */}
 
-                          <td>
-                            {
-                              appointment.appointmentTime
-                            }
-                          </td>
+                            <td>
 
-                          <td>
-                            <span
-                              className={getStatusClass(
-                                appointment.status
+                              <strong>
+                                {
+                                  appointment.patientName
+                                }
+                              </strong>
+
+                              {appointment.patient && (
+                                <small
+                                  style={{
+                                    display:
+                                      "block",
+                                    marginTop:
+                                      "4px",
+                                  }}
+                                >
+                                  Registered patient
+                                </small>
                               )}
-                            >
+
+                            </td>
+
+                            {/* CONTACT */}
+
+                            <td>
+
+                              <div>
+                                {
+                                  appointment.phone
+                                }
+                              </div>
+
+                              <small>
+                                {
+                                  appointment.email
+                                }
+                              </small>
+
+                            </td>
+
+                            {/* TREATMENT */}
+
+                            <td>
+
                               {
-                                appointment.status
+                                appointment.treatment
                               }
-                            </span>
-                          </td>
 
-                          <td>
+                              {appointment.symptoms && (
+                                <small
+                                  style={{
+                                    display:
+                                      "block",
+                                    marginTop:
+                                      "5px",
+                                  }}
+                                >
+                                  Complaint:{" "}
+                                  {
+                                    appointment.symptoms
+                                  }
+                                </small>
+                              )}
 
-                            <div className="action-buttons">
-                            <button
-                            className="primary-button"
-                            onClick={() =>
-                            handleCheckIn(appointment._id)
-                            }
-                            disabled={
-                              checkingInId === appointment._id ||
-                              appointment.status !== "Confirmed" ||
-                              appointment.tokenNumber
+                            </td>
+
+                            {/* DATE */}
+
+                            <td>
+
+                              {new Date(
+                                appointment.appointmentDate
+                              ).toLocaleDateString(
+                                "en-IN"
+                              )}
+
+                            </td>
+
+                            {/* TIME */}
+
+                            <td>
+                              {
+                                appointment.appointmentTime
                               }
-                              >
-                              {checkingInId === appointment._id
-                              ? "Checking in..."
-                              : appointment.tokenNumber
-                              ? `Token ${appointment.tokenNumber}`
-                              : "Check In"}
-                              </button>
+                            </td>
 
-                              <button
-                                className="confirm-button"
-                                onClick={() =>
-                                  updateStatus(
-                                    appointment._id,
-                                    "Confirmed"
-                                  )
+                            {/* STATUS */}
+
+                            <td>
+
+                              <span
+                                className={getStatusClass(
+                                  appointment.status
+                                )}
+                              >
+                                {
+                                  appointment.status
                                 }
-                                disabled={
-                                  updatingId ===
+                              </span>
+
+                            </td>
+
+                            {/* QUEUE */}
+
+                            <td>
+
+                              {appointment.tokenNumber ? (
+                                <div>
+
+                                  <strong>
+                                    Token{" "}
+                                    {
+                                      appointment.tokenNumber
+                                    }
+                                  </strong>
+
+                                  <small
+                                    style={{
+                                      display:
+                                        "block",
+                                      marginTop:
+                                        "4px",
+                                    }}
+                                  >
+                                    {
+                                      appointment.queueStatus ||
+                                      "Waiting"
+                                    }
+                                  </small>
+
+                                </div>
+                              ) : (
+                                <span>
+                                  Not issued
+                                </span>
+                              )}
+
+                            </td>
+
+                            {/* ACTIONS */}
+
+                            <td>
+
+                              <div className="action-buttons">
+
+                                {/* CONFIRM */}
+
+                                <button
+                                  className="confirm-button"
+                                  onClick={() =>
+                                    updateStatus(
+                                      appointment._id,
+                                      "Confirmed"
+                                    )
+                                  }
+                                  disabled={
+                                    updatingId ===
+                                      appointment._id ||
+                                    appointment.status !==
+                                      "Pending"
+                                  }
+                                >
+                                  {updatingId ===
                                   appointment._id
-                                }
-                              >
-                                Confirm
-                              </button>
+                                    ? "Updating..."
+                                    : appointment.status ===
+                                      "Confirmed"
+                                    ? "Confirmed"
+                                    : "Confirm"}
+                                </button>
 
-                              <button
-                                className="complete-button"
-                                onClick={() =>
-                                  updateStatus(
-                                    appointment._id,
-                                    "Completed"
-                                  )
-                                }
-                                disabled={
-                                  updatingId ===
-                                  appointment._id
-                                }
-                              >
-                                Complete
-                              </button>
+                                {/* GIVE TOKEN */}
 
-                              <button
-                                className="cancel-button"
-                                onClick={() =>
-                                  updateStatus(
-                                    appointment._id,
-                                    "Cancelled"
-                                  )
-                                }
-                                disabled={
-                                  updatingId ===
-                                  appointment._id
-                                }
-                              >
-                                Cancel
-                              </button>
+                                <button
+                                  className="primary-button"
+                                  onClick={() =>
+                                    handleGiveToken(
+                                      appointment._id
+                                    )
+                                  }
+                                  disabled={
+                                    isProcessing ||
+                                    appointment.status !==
+                                      "Confirmed" ||
+                                    !!appointment.tokenNumber
+                                  }
+                                >
+                                  {isProcessing
+                                    ? "Processing..."
+                                    : appointment.tokenNumber
+                                    ? `Token ${appointment.tokenNumber}`
+                                    : "Give Token"}
+                                </button>
 
-                            </div>
+                                {/* CALL TOKEN */}
 
-                          </td>
+                                <button
+                                  className="primary-button"
+                                  onClick={() =>
+                                    handleCallToken(
+                                      appointment._id
+                                    )
+                                  }
+                                  disabled={
+                                    isProcessing ||
+                                    !appointment.tokenNumber ||
+                                    appointment.queueStatus !==
+                                      "Waiting"
+                                  }
+                                >
+                                  {isProcessing
+                                    ? "Calling..."
+                                    : "Call Token"}
+                                </button>
 
-                        </tr>
+                                {/* CHECK IN */}
 
-                      )
+                                <button
+                                  className="primary-button"
+                                  onClick={() =>
+                                    handleCheckIn(
+                                      appointment._id
+                                    )
+                                  }
+                                  disabled={
+                                    isProcessing ||
+                                    !appointment.tokenNumber ||
+                                    appointment.queueStatus !==
+                                      "Called"
+                                  }
+                                >
+                                  {isProcessing
+                                    ? "Checking in..."
+                                    : "Check In"}
+                                </button>
+
+                                {/* COMPLETE */}
+
+                                <button
+                                  className="complete-button"
+                                  onClick={() =>
+                                    updateStatus(
+                                      appointment._id,
+                                      "Completed"
+                                    )
+                                  }
+                                  disabled={
+                                    updatingId ===
+                                      appointment._id ||
+                                    appointment.status !==
+                                      "Confirmed"
+                                  }
+                                >
+                                  Complete
+                                </button>
+
+                                {/* CANCEL */}
+
+                                <button
+                                  className="cancel-button"
+                                  onClick={() =>
+                                    updateStatus(
+                                      appointment._id,
+                                      "Cancelled"
+                                    )
+                                  }
+                                  disabled={
+                                    updatingId ===
+                                      appointment._id ||
+                                    appointment.status ===
+                                      "Completed" ||
+                                    appointment.status ===
+                                      "Cancelled"
+                                  }
+                                >
+                                  Cancel
+                                </button>
+
+                              </div>
+
+                            </td>
+
+                          </tr>
+                        );
+                      }
                     )}
 
                   </tbody>
@@ -753,13 +1167,16 @@ function AdminAppointments() {
             </div>
           )}
 
-        {/* MEDICAL RECORDS */}
+        {/* ===================================================
+            MEDICAL RECORDS
+            =================================================== */}
 
         <section className="dashboard-section">
 
           <div className="dashboard-section-header">
 
             <div>
+
               <p className="section-label">
                 CLINICAL CARE
               </p>
@@ -772,6 +1189,7 @@ function AdminAppointments() {
                 Record clinical information after
                 patient visits.
               </p>
+
             </div>
 
             <div className="appointment-count">
@@ -780,11 +1198,14 @@ function AdminAppointments() {
 
           </div>
 
+          {/* MEDICAL RECORD FORM */}
+
           <div className="booking-form-card">
 
             <div className="booking-form-header">
 
               <div>
+
                 <p className="section-label">
                   NEW RECORD
                 </p>
@@ -794,16 +1215,18 @@ function AdminAppointments() {
                 </h2>
 
                 <p>
-                  Clinical records can only be created
-                  by authorized clinic staff.
+                  Clinical records can only be
+                  created by authorized clinic
+                  staff.
                 </p>
+
               </div>
 
             </div>
 
-            <form
-              onSubmit={handleCreateRecord}
-            >
+            <form onSubmit={handleCreateRecord}>
+
+              {/* PATIENT + APPOINTMENT */}
 
               <div className="form-row">
 
@@ -826,24 +1249,25 @@ function AdminAppointments() {
                     </option>
 
                     {uniquePatients.map(
-                      (appointment) => (
+                      (appointment) => {
 
-                        <option
-                          key={
-                            appointment.patient._id
-                          }
-                          value={
-                            appointment.patient._id
-                          }
-                        >
-                          {
-                            appointment.patient.name
-                          } — {
-                            appointment.patient.email
-                          }
-                        </option>
+                        const patient =
+                          appointment.patient;
 
-                      )
+                        if (!patient) {
+                          return null;
+                        }
+
+                        return (
+                          <option
+                            key={patient._id}
+                            value={patient._id}
+                          >
+                            {patient.name} —{" "}
+                            {patient.email}
+                          </option>
+                        );
+                      }
                     )}
 
                   </select>
@@ -859,9 +1283,7 @@ function AdminAppointments() {
                   <select
                     id="recordAppointment"
                     name="appointment"
-                    value={
-                      recordForm.appointment
-                    }
+                    value={recordForm.appointment}
                     onChange={
                       handleAppointmentChange
                     }
@@ -875,20 +1297,26 @@ function AdminAppointments() {
                       (appointment) => (
 
                         <option
-                          key={appointment._id}
-                          value={appointment._id}
+                          key={
+                            appointment._id
+                          }
+                          value={
+                            appointment._id
+                          }
                         >
                           {
                             appointment.patientName
-                          } — {
+                          }{" "}
+                          —{" "}
+                          {
                             appointment.treatment
-                          } — {
-                            new Date(
-                              appointment.appointmentDate
-                            ).toLocaleDateString(
-                              "en-IN"
-                            )
-                          }
+                          }{" "}
+                          —{" "}
+                          {new Date(
+                            appointment.appointmentDate
+                          ).toLocaleDateString(
+                            "en-IN"
+                          )}
                         </option>
 
                       )
@@ -899,6 +1327,8 @@ function AdminAppointments() {
                 </div>
 
               </div>
+
+              {/* TREATMENT + DATE */}
 
               <div className="form-row">
 
@@ -947,6 +1377,8 @@ function AdminAppointments() {
 
               </div>
 
+              {/* DENTAL NOTES */}
+
               <div className="form-group">
 
                 <label htmlFor="dentalNotes">
@@ -967,6 +1399,8 @@ function AdminAppointments() {
                 />
 
               </div>
+
+              {/* MEDICATIONS */}
 
               <div className="form-group">
 
@@ -989,6 +1423,8 @@ function AdminAppointments() {
 
               </div>
 
+              {/* PRESCRIPTION */}
+
               <div className="form-group">
 
                 <label htmlFor="prescription">
@@ -1009,6 +1445,8 @@ function AdminAppointments() {
                 />
 
               </div>
+
+              {/* ADDITIONAL NOTES */}
 
               <div className="form-group">
 
@@ -1057,18 +1495,23 @@ function AdminAppointments() {
 
           </div>
 
+          {/* EXISTING MEDICAL RECORDS */}
+
           <div className="appointments-section">
 
             <div className="table-header">
 
               <div>
+
                 <h3>
                   Recorded clinical history
                 </h3>
 
                 <p>
-                  Existing patient medical records
+                  Existing patient medical
+                  records
                 </p>
+
               </div>
 
             </div>
@@ -1095,8 +1538,8 @@ function AdminAppointments() {
                 </h3>
 
                 <p>
-                  Medical records created by the
-                  clinic will appear here.
+                  Medical records created by
+                  the clinic will appear here.
                 </p>
 
               </div>
@@ -1120,10 +1563,8 @@ function AdminAppointments() {
                         </span>
 
                         <h3>
-                          {
-                            record.patient?.name ||
-                            "Patient"
-                          }
+                          {record.patient?.name ||
+                            "Patient"}
                         </h3>
 
                         <p>
@@ -1140,9 +1581,7 @@ function AdminAppointments() {
                             <strong>
                               Dental notes:
                             </strong>{" "}
-                            {
-                              record.dentalNotes
-                            }
+                            {record.dentalNotes}
                           </p>
                         )}
 
@@ -1151,9 +1590,7 @@ function AdminAppointments() {
                             <strong>
                               Medications:
                             </strong>{" "}
-                            {
-                              record.medications
-                            }
+                            {record.medications}
                           </p>
                         )}
 
@@ -1162,9 +1599,7 @@ function AdminAppointments() {
                             <strong>
                               Prescription:
                             </strong>{" "}
-                            {
-                              record.prescription
-                            }
+                            {record.prescription}
                           </p>
                         )}
 
@@ -1173,9 +1608,7 @@ function AdminAppointments() {
                             <strong>
                               Additional notes:
                             </strong>{" "}
-                            {
-                              record.additionalNotes
-                            }
+                            {record.additionalNotes}
                           </p>
                         )}
 
@@ -1195,6 +1628,7 @@ function AdminAppointments() {
         </section>
 
       </main>
+
     </div>
   );
 }

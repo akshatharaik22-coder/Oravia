@@ -10,6 +10,7 @@ import PatientDashboard from "./pages/PatientDashboard.jsx";
 
 import AdminLogin from "./pages/AdminLogin.jsx";
 import AdminAppointments from "./pages/AdminAppointments.jsx";
+import DoctorMonitor from "./pages/DoctorMonitor.jsx";
 
 function App() {
   return (
@@ -27,6 +28,7 @@ function App() {
         <Route path="/clinics" element={<Clinics />} />
 
         <Route path="/booking" element={<Booking />} />
+        <Route path="/doctor" element={<DoctorMonitor />} />
 
         {/* =========================
             PATIENT
