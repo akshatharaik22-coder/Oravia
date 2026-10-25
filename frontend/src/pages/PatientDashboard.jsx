@@ -152,15 +152,11 @@ function PatientDashboard() {
         appointment.status !== "Cancelled"
     );
 
-  const appointmentHistory =
-    appointments.filter(
-      (appointment) =>
-        appointment.status === "Completed" ||
-        (
-          appointment.status === "Cancelled" &&
-          appointment.cancelledBy === "admin"
-        )
-    );
+  const appointmentHistory = appointments.filter(
+    (appointment) =>
+      appointment.status === "Completed" ||
+      appointment.status === "Cancelled"
+  );
 
   const formatDate = (date) => {
     return new Date(date).toLocaleDateString(

@@ -197,7 +197,7 @@ router.post("/admin-login", async (req, res) => {
     });
   }
 });
-// Get logged-in patient profile
+// Get the logged-in patient's profile.
 router.get("/me", authMiddleware, async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select(
@@ -206,7 +206,7 @@ router.get("/me", authMiddleware, async (req, res) => {
 
     if (!user) {
       return res.status(404).json({
-        message: "Patient account not found",
+        message: "User account not found",
       });
     }
 
@@ -220,10 +220,10 @@ router.get("/me", authMiddleware, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Fetching patient profile error:", error.message);
+    console.error("Fetch current user error:", error.message);
 
     res.status(500).json({
-      message: "Failed to fetch patient profile",
+      message: "Failed to fetch current user",
     });
   }
 });

@@ -112,70 +112,70 @@ router.get("/mine", authMiddleware, async (req, res) => {
 });
 
 
+
 // ======================================================
 // CANCEL MY APPOINTMENT
 // ======================================================
 
-router.patch(
-  "/:id/cancel",
-  authMiddleware,
-  async (req, res) => {
-    try {
-      const appointment = await Appointment.findOne({
-        _id: req.params.id,
-        patient: req.user.id,
+router.patch("/:id/cancel", authMiddleware, async (req, res) => {
+  try {
+    const appointment = await Appointment.findOne({
+      _id: req.params.id,
+      patient: req.user.id,
+    });
+
+    if (!appointment) {
+      return res.status(404).json({
+        message: "Appointment not found or does not belong to you",
       });
+    }
 
-      if (!appointment) {
-        return res.status(404).json({
-          message:
-            "Appointment not found or does not belong to you",
-        });
-      }
-
-      if (appointment.status === "Completed") {
-        return res.status(400).json({
-          message:
-            "Completed appointments cannot be cancelled",
-        });
-      }
-
-      if (appointment.status === "Cancelled") {
-        return res.status(400).json({
-          message: "This appointment is already cancelled",
-        });
-      }
-
-      appointment.status = "Cancelled";
-      appointment.cancelledBy = "patient";
-
-      const updatedAppointment = await appointment.save();
-
-      try {
-        await sendStatusUpdateEmail(updatedAppointment);
-      } catch (emailError) {
-        console.error(
-          "Status update email error:",
-          emailError.message
-        );
-      }
-
-      res.status(200).json({
-        message: "Appointment cancelled successfully",
-        appointment: updatedAppointment,
+    if (
+      appointment.status === "Completed" ||
+      appointment.status === "Cancelled"
+    ) {
+      return res.status(400).json({
+        message:
+          appointment.status === "Completed"
+            ? "Completed appointments cannot be cancelled"
+            : "This appointment is already cancelled",
       });
-    } catch (error) {
+    }
+
+    appointment.status = "Cancelled";
+    appointment.cancelledBy = "patient";
+
+    // Remove the cancelled patient from the active queue.
+    if (appointment.tokenNumber) {
+      appointment.queueStatus = "Skipped";
+    }
+
+    const updatedAppointment = await appointment.save();
+
+    // Respond without waiting for the email service.
+    res.status(200).json({
+      message: "Appointment cancelled successfully",
+      appointment: updatedAppointment,
+    });
+
+    // Send notification in the background.
+    sendStatusUpdateEmail(updatedAppointment).catch((emailError) => {
       console.error(
-        "Appointment cancellation error:",
-        error.message
+        "[EMAIL ERROR] Cancellation notification:",
+        emailError.message
       );
+    });
+  } catch (error) {
+    console.error("Appointment cancellation error:", error.message);
 
+    if (!res.headersSent) {
       res.status(500).json({
         message: "Failed to cancel appointment",
       });
     }
   }
-);
+});
+
 
 
 // ======================================================

@@ -1,3 +1,4 @@
+
 /* =========================================
    ORAVIA DESIGN SYSTEM
 ========================================= */
@@ -319,7 +320,57 @@
 }
 
 /* =========================================
-   RESPONSIVE
+   ADMIN HEADER ACTIONS
+========================================= */
+
+.admin-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* =========================================
+   DOCTOR MONITOR BUTTON
+========================================= */
+
+.doctor-monitor-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 11px 18px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--oravia-teal);
+  color: var(--oravia-white);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.doctor-monitor-button:hover {
+  background: var(--oravia-teal-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(42, 157, 143, 0.2);
+}
+
+.doctor-monitor-button:focus-visible {
+  outline: 3px solid #99f6e4;
+  outline-offset: 3px;
+}
+
+.doctor-monitor-button:active {
+  transform: translateY(0);
+}
+
+/* =========================================
+   RESPONSIVE DESIGN
 ========================================= */
 
 @media (max-width: 900px) {
@@ -337,6 +388,19 @@
 
   .features-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .admin-header-actions {
+    justify-content: flex-start;
+    width: 100%;
+    gap: 10px;
+  }
+
+  .doctor-monitor-button {
+    padding: 10px 15px;
+    font-size: 13px;
   }
 }
 

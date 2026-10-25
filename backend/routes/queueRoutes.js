@@ -1,25 +1,265 @@
+
 const express = require("express");
+const mongoose = require("mongoose");
 const Appointment = require("../models/Appointment");
-const User = require("../models/User");
 const adminMiddleware = require("../middleware/adminMiddleware");
 
 const router = express.Router();
 
-/*
-  ============================================================
-  GIVE TOKEN TO PATIENT
-  Receptionist uses this when the patient arrives at the clinic.
-  Token is generated automatically.
-  ============================================================
-*/
+const {
+  sendTokenEmail,
+  sendTokenCalledEmail,
+  sendStatusUpdateEmail,
+} = require("../utils/sendEmail");
+
+// --------------------------------------------------
+// HELPER: Send email without blocking queue actions
+// --------------------------------------------------
+const sendEmailSafely = (emailPromise, label) => {
+  Promise.resolve(emailPromise).catch((error) => {
+    console.error(`[EMAIL ERROR] ${label}:`, error.message);
+  });
+};
+
+// --------------------------------------------------
+// 1. GIVE TOKEN TO A CONFIRMED PATIENT
+// PATCH /api/queue/:appointmentId/give-token
+// --------------------------------------------------
 router.patch(
   "/:appointmentId/give-token",
   adminMiddleware,
   async (req, res) => {
     try {
-      const appointment = await Appointment.findById(
-        req.params.appointmentId
+      const { appointmentId } = req.params;
+
+      if (!mongoose.isValidObjectId(appointmentId)) {
+        return res.status(400).json({
+          message: "Invalid appointment ID",
+        });
+      }
+
+      const appointment = await Appointment.findById(appointmentId);
+
+      if (!appointment) {
+        return res.status(404).json({
+          message: "Appointment not found",
+        });
+      }
+
+      // Diagnostic logging: check why the appointment is rejected.
+      if (appointment.status !== "Confirmed") {
+        console.log("Give-token validation:", {
+          appointmentId: req.params.appointmentId,
+          status: appointment?.status,
+          tokenNumber: appointment?.tokenNumber,
+          patient: appointment?.patient,
+        });
+
+        return res.status(400).json({
+          message: "Only confirmed appointments can receive a token",
+        });
+      }
+
+      if (
+        appointment.tokenNumber !== null &&
+        appointment.tokenNumber !== undefined
+      ) {
+        console.log("Give-token validation:", {
+          appointmentId: req.params.appointmentId,
+          status: appointment?.status,
+          tokenNumber: appointment?.tokenNumber,
+          patient: appointment?.patient,
+        });
+
+        return res.status(409).json({
+          message: "This appointment already has a token",
+          appointment,
+        });
+      }
+
+      if (!appointment.patient) {
+        console.log("Give-token validation:", {
+          appointmentId: req.params.appointmentId,
+          status: appointment?.status,
+          tokenNumber: appointment?.tokenNumber,
+          patient: appointment?.patient,
+        });
+
+        return res.status(400).json({
+          message: "This appointment is not linked to a patient account",
+        });
+      }
+
+      // Use the clinic's local calendar date for daily token numbering.
+      const dateKey = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Kolkata",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date());
+
+      const todayStart = new Date(`${dateKey}T00:00:00+05:30`);
+
+      const tomorrowStart = new Date(todayStart);
+      tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+
+      // Find the highest token assigned today.
+      const latestAppointment = await Appointment.findOne({
+        tokenNumber: { $ne: null },
+        arrivalTime: {
+          $gte: todayStart,
+          $lt: tomorrowStart,
+        },
+      }).sort({ tokenNumber: -1 });
+
+      const nextToken = latestAppointment?.tokenNumber
+        ? latestAppointment.tokenNumber + 1
+        : 1;
+
+      // Conditional update prevents assigning a token twice
+      // to the same appointment.
+      const updatedAppointment = await Appointment.findOneAndUpdate(
+        {
+          _id: appointmentId,
+          status: "Confirmed",
+          tokenNumber: null,
+        },
+        {
+          $set: {
+            tokenNumber: nextToken,
+            queueStatus: "Waiting",
+            arrivalTime: new Date(),
+          },
+        },
+        {
+          new: true,
+          runValidators: true,
+        }
       );
+
+      if (!updatedAppointment) {
+        const existing = await Appointment.findById(appointmentId);
+
+        console.log("Give-token conditional update failed:", {
+          appointmentId,
+          status: existing?.status,
+          tokenNumber: existing?.tokenNumber,
+          queueStatus: existing?.queueStatus,
+          patient: existing?.patient,
+        });
+
+        return res.status(409).json({
+          message:
+            "The appointment changed or already received a token. Refresh and try again.",
+        });
+      }
+
+      // Send the token email without delaying the response.
+      sendEmailSafely(
+        sendTokenEmail(updatedAppointment),
+        "Queue token notification"
+      );
+
+      return res.status(200).json({
+        message: `Token ${updatedAppointment.tokenNumber} assigned successfully`,
+        appointment: updatedAppointment,
+      });
+    } catch (error) {
+      console.error("Give token error:", error);
+
+      return res.status(500).json({
+        message: "Failed to generate token",
+      });
+    }
+  }
+);
+
+// --------------------------------------------------
+// 2. CALL A WAITING PATIENT
+// PATCH /api/queue/:appointmentId/call
+// --------------------------------------------------
+router.patch("/:appointmentId/call", adminMiddleware, async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+
+    if (!mongoose.isValidObjectId(appointmentId)) {
+      return res.status(400).json({
+        message: "Invalid appointment ID",
+      });
+    }
+
+    const updatedAppointment = await Appointment.findOneAndUpdate(
+      {
+        _id: appointmentId,
+        status: "Confirmed",
+        tokenNumber: { $ne: null },
+        queueStatus: "Waiting",
+      },
+      {
+        $set: {
+          queueStatus: "Called",
+          calledTime: new Date(),
+        },
+      },
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
+
+    if (!updatedAppointment) {
+      const existing = await Appointment.findById(appointmentId);
+
+      if (!existing) {
+        return res.status(404).json({
+          message: "Appointment not found",
+        });
+      }
+
+      return res.status(400).json({
+        message:
+          "Only confirmed patients with a token and Waiting queue status can be called",
+        queueStatus: existing.queueStatus,
+        appointmentStatus: existing.status,
+      });
+    }
+
+    sendEmailSafely(
+      sendTokenCalledEmail(updatedAppointment),
+      "Token-called notification"
+    );
+
+    return res.status(200).json({
+      message: `Token ${updatedAppointment.tokenNumber} has been called`,
+      appointment: updatedAppointment,
+    });
+  } catch (error) {
+    console.error("Call token error:", error);
+
+    return res.status(500).json({
+      message: "Failed to call patient",
+    });
+  }
+});
+
+// --------------------------------------------------
+// 3. START CONSULTATION
+// PATCH /api/queue/:appointmentId/check-in
+// --------------------------------------------------
+router.patch(
+  "/:appointmentId/check-in",
+  adminMiddleware,
+  async (req, res) => {
+    try {
+      const { appointmentId } = req.params;
+
+      if (!mongoose.isValidObjectId(appointmentId)) {
+        return res.status(400).json({
+          message: "Invalid appointment ID",
+        });
+      }
+
+      const appointment = await Appointment.findById(appointmentId);
 
       if (!appointment) {
         return res.status(404).json({
@@ -29,310 +269,166 @@ router.patch(
 
       if (appointment.status !== "Confirmed") {
         return res.status(400).json({
-          message:
-            "Only confirmed appointments can receive a token",
+          message: "Only confirmed appointments can enter consultation",
         });
       }
 
-      if (appointment.tokenNumber) {
+      if (
+        appointment.queueStatus !== "Called" ||
+        appointment.tokenNumber == null
+      ) {
         return res.status(400).json({
-          message: "This appointment already has a token",
-          appointment,
+          message:
+            "Generate a token and call the patient before starting consultation",
         });
       }
 
-      /*
-        Older appointments may not have the patient field.
-        Try to connect them with the registered patient using email.
-      */
-      if (!appointment.patient) {
-        const patient = await User.findOne({
-          email: appointment.email.toLowerCase().trim(),
-        });
+      // ORAVIA currently assumes one doctor.
+      // Do not start a new consultation while another is active.
+      const activeConsultation = await Appointment.findOne({
+        status: "Confirmed",
+        queueStatus: "In Consultation",
+      });
 
-        if (!patient) {
-          return res.status(404).json({
-            message:
-              "Patient account could not be found for this appointment",
-          });
-        }
-
-        appointment.patient = patient._id;
+      if (activeConsultation) {
+        return res.status(409).json({
+          message:
+            "Another patient is already in consultation. Complete that consultation first.",
+       });
       }
 
-      /*
-        Generate the next token for the current clinic day.
-
-        Token numbering starts again from 1 for a new day.
-      */
-      const today = new Date();
-
-      const startOfDay = new Date(today);
-      startOfDay.setHours(0, 0, 0, 0);
-
-      const endOfDay = new Date(today);
-      endOfDay.setHours(23, 59, 59, 999);
-
-      const latestTokenAppointment =
-        await Appointment.findOne({
+      const updatedAppointment = await Appointment.findOneAndUpdate(
+        {
+          _id: appointmentId,
+          status: "Confirmed",
+          queueStatus: "Called",
           tokenNumber: { $ne: null },
-          arrivalTime: {
-            $gte: startOfDay,
-            $lte: endOfDay,
+        },
+        {
+          $set: {
+            queueStatus: "In Consultation",
+            consultationStartTime: new Date(),
           },
-        }).sort({
-          tokenNumber: -1,
+        },
+        {
+          new: true,
+          runValidators: true,
+        }
+      );
+
+      if (!updatedAppointment) {
+        return res.status(409).json({
+          message:
+            "The appointment queue status changed. Refresh and try again.",
         });
+      }
 
-      const nextToken =
-        latestTokenAppointment &&
-        latestTokenAppointment.tokenNumber
-          ? latestTokenAppointment.tokenNumber + 1
-          : 1;
-
-      appointment.tokenNumber = nextToken;
-      appointment.queueStatus = "Waiting";
-      appointment.arrivalTime = new Date();
-
-      const updatedAppointment =
-        await appointment.save();
-
-      res.status(200).json({
-        message: "Token generated successfully",
+      return res.status(200).json({
+        message: "Consultation started successfully",
         appointment: updatedAppointment,
       });
     } catch (error) {
-      console.error(
-        "Give token error:",
-        error.message
-      );
+      console.error("Start consultation error:", error);
 
-      res.status(500).json({
-        message: "Failed to generate token",
+      return res.status(500).json({
+        message: "Failed to start consultation",
       });
     }
   }
 );
 
+// --------------------------------------------------
+// 4. GET CURRENT PATIENT FOR DOCTOR MONITOR
+// GET /api/queue/doctor/current
+// --------------------------------------------------
+router.get("/doctor/current", adminMiddleware, async (req, res) => {
+  try {
+    const appointment = await Appointment.findOne({
+      queueStatus: "In Consultation",
+      status: "Confirmed",
+    })
+      .populate("patient", "name phone email")
+      .sort({ consultationStartTime: 1 });
 
-/*
-  ============================================================
-  CALL TOKEN
-  Receptionist calls a waiting patient.
-  ============================================================
-*/
-router.patch(
-  "/:appointmentId/call",
-  adminMiddleware,
-  async (req, res) => {
-    try {
-      const appointment = await Appointment.findById(
-        req.params.appointmentId
-      );
+    return res.status(200).json({
+      appointment: appointment || null,
+    });
+  } catch (error) {
+    console.error("Doctor monitor error:", error);
 
-      if (!appointment) {
-        return res.status(404).json({
-          message: "Appointment not found",
-        });
-      }
-
-      if (!appointment.tokenNumber) {
-        return res.status(400).json({
-          message:
-            "A token must be generated before calling the patient",
-        });
-      }
-
-      if (appointment.queueStatus !== "Waiting") {
-        return res.status(400).json({
-          message:
-            "Only waiting patients can be called",
-        });
-      }
-
-      appointment.queueStatus = "Called";
-      appointment.calledTime = new Date();
-
-      const updatedAppointment =
-        await appointment.save();
-
-      res.status(200).json({
-        message: "Patient token called",
-        appointment: updatedAppointment,
-      });
-    } catch (error) {
-      console.error(
-        "Call token error:",
-        error.message
-      );
-
-      res.status(500).json({
-        message: "Failed to call patient",
-      });
-    }
+    return res.status(500).json({
+      message: "Failed to fetch current patient",
+    });
   }
-);
+});
 
-
-/*
-  ============================================================
-  CHECK IN PATIENT
-  Receptionist uses this after the patient's token is called
-  and the patient reaches reception.
-
-  This sends the patient into the doctor's active queue.
-  ============================================================
-*/
-router.patch(
-  "/:appointmentId/check-in",
-  adminMiddleware,
-  async (req, res) => {
-    try {
-      const appointment = await Appointment.findById(
-        req.params.appointmentId
-      ).populate(
-        "patient",
-        "name phone email"
-      );
-
-      if (!appointment) {
-        return res.status(404).json({
-          message: "Appointment not found",
-        });
-      }
-
-      if (!appointment.tokenNumber) {
-        return res.status(400).json({
-          message:
-            "Patient must receive a token before check-in",
-        });
-      }
-
-      if (appointment.queueStatus !== "Called") {
-        return res.status(400).json({
-          message:
-            "Patient must be called before check-in",
-        });
-      }
-
-      if (!appointment.patient) {
-        return res.status(400).json({
-          message:
-            "Patient account is not linked to this appointment",
-        });
-      }
-
-      appointment.queueStatus = "In Consultation";
-      appointment.consultationStartTime =
-        new Date();
-
-      const updatedAppointment =
-        await appointment.save();
-
-      res.status(200).json({
-        message:
-          "Patient checked in successfully",
-        appointment: updatedAppointment,
-      });
-    } catch (error) {
-      console.error(
-        "Patient check-in error:",
-        error.message
-      );
-
-      res.status(500).json({
-        message: "Failed to check in patient",
-      });
-    }
-  }
-);
-
-
-/*
-  ============================================================
-  DOCTOR MONITOR
-  Returns the currently active patient.
-  ============================================================
-*/
-router.get(
-  "/doctor/current",
-  async (req, res) => {
-    try {
-      const appointment =
-        await Appointment.findOne({
-          queueStatus: "In Consultation",
-        })
-          .populate(
-            "patient",
-            "name phone email"
-          )
-          .sort({
-            consultationStartTime: 1,
-          });
-
-      res.status(200).json({
-        appointment: appointment || null,
-      });
-    } catch (error) {
-      console.error(
-        "Doctor monitor error:",
-        error.message
-      );
-
-      res.status(500).json({
-        message:
-          "Failed to fetch current patient",
-      });
-    }
-  }
-);
-
-
-/*
-  ============================================================
-  COMPLETE CONSULTATION
-  This will be connected to the medical-record creation
-  workflow after the doctor monitor is built.
-  ============================================================
-*/
+// --------------------------------------------------
+// 5. COMPLETE CONSULTATION
+// PATCH /api/queue/:appointmentId/complete
+// --------------------------------------------------
 router.patch(
   "/:appointmentId/complete",
   adminMiddleware,
   async (req, res) => {
     try {
-      const appointment =
-        await Appointment.findById(
-          req.params.appointmentId
-        );
+      const { appointmentId } = req.params;
 
-      if (!appointment) {
-        return res.status(404).json({
-          message: "Appointment not found",
+      if (!mongoose.isValidObjectId(appointmentId)) {
+        return res.status(400).json({
+          message: "Invalid appointment ID",
         });
       }
 
-      appointment.queueStatus = "Completed";
-      appointment.status = "Completed";
-      appointment.consultationEndTime =
-        new Date();
+      const updatedAppointment = await Appointment.findOneAndUpdate(
+        {
+          _id: appointmentId,
+          status: "Confirmed",
+          queueStatus: "In Consultation",
+        },
+        {
+          $set: {
+            queueStatus: "Completed",
+            status: "Completed",
+            consultationEndTime: new Date(),
+          },
+        },
+        {
+          new: true,
+          runValidators: true,
+        }
+      );
 
-      const updatedAppointment =
-        await appointment.save();
+      if (!updatedAppointment) {
+        const existing = await Appointment.findById(appointmentId);
 
-      res.status(200).json({
-        message:
-          "Consultation completed successfully",
+        if (!existing) {
+          return res.status(404).json({
+            message: "Appointment not found",
+          });
+        }
+
+        return res.status(400).json({
+          message:
+            "Only a patient currently in consultation can be completed",
+          queueStatus: existing.queueStatus,
+          appointmentStatus: existing.status,
+        });
+      }
+
+      sendEmailSafely(
+        sendStatusUpdateEmail(updatedAppointment),
+        "Consultation completion notification"
+      );
+
+      return res.status(200).json({
+        message: "Consultation completed successfully",
         appointment: updatedAppointment,
       });
     } catch (error) {
-      console.error(
-        "Complete consultation error:",
-        error.message
-      );
+      console.error("Complete consultation error:", error);
 
-      res.status(500).json({
-        message:
-          "Failed to complete consultation",
+      return res.status(500).json({
+        message: "Failed to complete consultation",
       });
     }
   }

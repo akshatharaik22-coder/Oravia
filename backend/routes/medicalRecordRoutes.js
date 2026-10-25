@@ -2,6 +2,7 @@ const express = require("express");
 const MedicalRecord = require("../models/MedicalRecord");
 const authMiddleware = require("../middleware/authMiddleware");
 const adminMiddleware = require("../middleware/adminMiddleware");
+const { sendPrescriptionEmail } = require("../utils/sendEmail");
 
 const router = express.Router();
 
@@ -77,10 +78,48 @@ router.post("/", adminMiddleware, async (req, res) => {
 
     const savedRecord = await record.save();
 
-    res.status(201).json({
-      message: "Medical record created successfully",
-      record: savedRecord,
-    });
+// Load the patient's registered email and appointment details.
+await savedRecord.populate("patient", "name email");
+await savedRecord.populate(
+  "appointment",
+  "treatment appointmentDate appointmentTime"
+);
+
+let prescriptionEmailSent = false;
+let prescriptionEmailWarning = "";
+
+// Email the prescription only when medication or prescription
+// details have actually been entered.
+const hasPrescriptionDetails =
+  Boolean(savedRecord.medications?.trim()) ||
+  Boolean(savedRecord.prescription?.trim());
+
+if (hasPrescriptionDetails) {
+  try {
+    await sendPrescriptionEmail(
+      savedRecord,
+      savedRecord.patient,
+      savedRecord.appointment
+    );
+
+    prescriptionEmailSent = true;
+  } catch (emailError) {
+    console.error(
+      "Prescription saved, but email delivery failed:",
+      emailError
+    );
+
+    prescriptionEmailWarning =
+      "The medical record was saved, but the prescription email could not be sent. Please check the clinic email configuration and try again.";
+  }
+}
+
+res.status(201).json({
+  message: "Medical record created successfully",
+  record: savedRecord,
+  prescriptionEmailSent,
+  prescriptionEmailWarning,
+});
   } catch (error) {
     console.error("Creating medical record error:", error);
 

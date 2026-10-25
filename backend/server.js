@@ -7,6 +7,7 @@ const appointmentRoutes = require("./routes/appointmentRoutes");
 const medicalRecordRoutes = require("./routes/medicalRecordRoutes");
 const authRoutes = require("./routes/authRoutes");
 const queueRoutes = require("./routes/queueRoutes");
+const invoiceRoutes = require("./routes/invoiceRoutes");
 
 const dns = require("dns");
 
@@ -31,7 +32,7 @@ app.use("/api/appointments", appointmentRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/queue", queueRoutes);
 app.use("/api/medical-records", medicalRecordRoutes);
-
+app.use("/api/invoices", invoiceRoutes);
 
 // ===============================
 // MONGODB CONNECTION
