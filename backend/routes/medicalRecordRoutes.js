@@ -1,8 +1,17 @@
 const express = require("express");
+const mongoose = require("mongoose");
+
 const MedicalRecord = require("../models/MedicalRecord");
+const Appointment = require("../models/Appointment");
+
 const authMiddleware = require("../middleware/authMiddleware");
 const adminMiddleware = require("../middleware/adminMiddleware");
+
 const { sendPrescriptionEmail } = require("../utils/sendEmail");
+
+const {
+  generateMedicalRecordPDF,
+} = require("../utils/pdfGenerator");
 
 const router = express.Router();
 
@@ -24,6 +33,69 @@ router.get("/mine", authMiddleware, async (req, res) => {
     });
   }
 });
+// --------------------------------------------------
+// PATIENT - DOWNLOAD OWN MEDICAL DOCUMENT
+// GET /api/medical-records/mine/:id/pdf?type=report
+// GET /api/medical-records/mine/:id/pdf?type=prescription
+// --------------------------------------------------
+
+router.get("/mine/:id/pdf", authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const type = req.query.type || "report";
+
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({
+        message: "Invalid medical record ID",
+      });
+    }
+
+    if (!["report", "prescription"].includes(type)) {
+      return res.status(400).json({
+        message: "Invalid document type",
+      });
+    }
+
+    const record = await MedicalRecord.findOne({
+      _id: id,
+      patient: req.user.id,
+    })
+      .populate("patient", "name email")
+      .populate(
+        "appointment",
+        "treatment appointmentDate appointmentTime"
+      );
+
+    if (!record) {
+      return res.status(404).json({
+        message: "Medical record not found",
+      });
+    }
+
+    // Do not generate an empty prescription document.
+    if (
+      type === "prescription" &&
+      !record.prescription?.trim() &&
+      !record.medications?.trim()
+    ) {
+      return res.status(404).json({
+        message: "No prescription information is available",
+      });
+    }
+
+    return generateMedicalRecordPDF(record, res, type);
+  } catch (error) {
+    console.error("Patient medical document download error:", error);
+
+    if (!res.headersSent) {
+      return res.status(500).json({
+        message: "Failed to generate medical document",
+      });
+    }
+
+    res.end();
+  }
+});
 
 // ADMIN - GET ALL MEDICAL RECORDS
 router.get("/", adminMiddleware, async (req, res) => {
@@ -43,7 +115,65 @@ router.get("/", adminMiddleware, async (req, res) => {
     });
   }
 });
+// --------------------------------------------------
+// ADMIN - DOWNLOAD MEDICAL DOCUMENT
+// GET /api/medical-records/:id/pdf?type=report
+// GET /api/medical-records/:id/pdf?type=prescription
+// --------------------------------------------------
 
+router.get("/:id/pdf", adminMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const type = req.query.type || "report";
+
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({
+        message: "Invalid medical record ID",
+      });
+    }
+
+    if (!["report", "prescription"].includes(type)) {
+      return res.status(400).json({
+        message: "Invalid document type",
+      });
+    }
+
+    const record = await MedicalRecord.findById(id)
+      .populate("patient", "name email")
+      .populate(
+        "appointment",
+        "treatment appointmentDate appointmentTime"
+      );
+
+    if (!record) {
+      return res.status(404).json({
+        message: "Medical record not found",
+      });
+    }
+
+    if (
+      type === "prescription" &&
+      !record.prescription?.trim() &&
+      !record.medications?.trim()
+    ) {
+      return res.status(404).json({
+        message: "No prescription information is available",
+      });
+    }
+
+    return generateMedicalRecordPDF(record, res, type);
+  } catch (error) {
+    console.error("Admin medical document download error:", error);
+
+    if (!res.headersSent) {
+      return res.status(500).json({
+        message: "Failed to generate medical document",
+      });
+    }
+
+    res.end();
+  }
+});
 // ADMIN - CREATE MEDICAL RECORD
 router.post("/", adminMiddleware, async (req, res) => {
   try {

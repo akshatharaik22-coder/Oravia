@@ -1,0 +1,213 @@
+
+/* ========================================
+   PATIENT INVOICES
+======================================== */
+
+.patient-invoice-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+  margin-top: 24px;
+}
+
+.patient-invoice-card {
+  min-width: 0;
+  padding: 24px;
+  border: 1px solid #dce8e9;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(20, 65, 75, 0.05);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.patient-invoice-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 30px rgba(20, 65, 75, 0.09);
+}
+
+.patient-invoice-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #edf2f3;
+}
+
+.patient-invoice-header h3 {
+  margin: 8px 0;
+  color: #174c5a;
+  font-size: 19px;
+  overflow-wrap: anywhere;
+}
+
+.patient-invoice-date {
+  margin: 0;
+  color: #71818a;
+  font-size: 13px;
+}
+
+.patient-invoice-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 11px;
+  border-radius: 30px;
+  background: #fff3dc;
+  color: #865800;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.patient-invoice-status-paid {
+  background: #e2f7ed;
+  color: #14734b;
+}
+
+.patient-invoice-status-partially-paid {
+  background: #e7f2ff;
+  color: #205da5;
+}
+
+.patient-invoice-status-unpaid {
+  background: #fff0ed;
+  color: #b33b2e;
+}
+
+.patient-invoice-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px 16px;
+  padding: 22px 0;
+}
+
+.patient-invoice-details > div {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+
+.patient-invoice-details span {
+  color: #75848b;
+  font-size: 12px;
+}
+
+.patient-invoice-details strong {
+  color: #253e46;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+.patient-invoice-details .patient-invoice-balance-due {
+  color: #b33b2e;
+}
+
+.patient-invoice-details .patient-invoice-balance-clear {
+  color: #14734b;
+}
+
+.patient-invoice-appointment-date {
+  margin: 0 0 18px;
+  color: #64767e;
+  font-size: 13px;
+}
+
+.patient-invoice-actions {
+  display: flex;
+  justify-content: flex-start;
+  padding-top: 16px;
+  border-top: 1px solid #edf2f3;
+}
+
+.patient-invoice-download {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 11px 16px;
+  border: 1px solid #174c5a;
+  border-radius: 9px;
+  background: #174c5a;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.patient-invoice-download:hover:not(:disabled) {
+  background: #103944;
+  transform: translateY(-1px);
+}
+
+.patient-invoice-download:focus-visible {
+  outline: 3px solid #8bc6d1;
+  outline-offset: 3px;
+}
+
+.patient-invoice-download:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+@media (max-width: 900px) {
+  .patient-invoice-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .patient-invoice-card {
+    padding: 17px;
+  }
+
+  .patient-invoice-header {
+    flex-direction: column;
+  }
+
+  .patient-invoice-details {
+    gap: 18px 12px;
+  }
+
+  .patient-invoice-download {
+    width: 100%;
+  }
+}
+.patient-receipt-download {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 11px 16px;
+  border: 1px solid #16877e;
+  border-radius: 10px;
+  background: #e5f6f3;
+  color: #126b64;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.patient-receipt-download:hover:not(:disabled) {
+  background: #d0eee8;
+  transform: translateY(-1px);
+}
+
+.patient-receipt-download:focus-visible {
+  outline: 3px solid #8bc6d1;
+  outline-offset: 3px;
+}
+
+.patient-receipt-download:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}

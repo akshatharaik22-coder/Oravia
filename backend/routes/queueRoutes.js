@@ -13,14 +13,70 @@ const {
 } = require("../utils/sendEmail");
 
 // --------------------------------------------------
-// HELPER: Send email without blocking queue actions
+// HELPER: Send email and report whether it succeeded
 // --------------------------------------------------
-const sendEmailSafely = (emailPromise, label) => {
-  Promise.resolve(emailPromise).catch((error) => {
-    console.error(`[EMAIL ERROR] ${label}:`, error.message);
-  });
-};
+const sendEmailSafely = async (emailPromise, label) => {
+  try {
+    await emailPromise;
 
+    console.log(`[EMAIL SUCCESS] ${label}`);
+
+    return {
+      emailSent: true,
+      emailMessage: "Notification email sent successfully.",
+    };
+  } catch (error) {
+    console.error(`[EMAIL ERROR] ${label}:`, error.message);
+
+    return {
+      emailSent: false,
+      emailMessage:
+        "The queue action succeeded, but the notification email could not be sent.",
+    };
+  }
+};
+// --------------------------------------------------
+// HELPER: Prepare consistent appointment email details
+// --------------------------------------------------
+const getAppointmentEmailDetails = async (appointmentId) => {
+  const appointment = await Appointment.findById(appointmentId)
+    .populate("patient", "name email phone");
+
+  if (!appointment) {
+    throw new Error("Appointment not found while preparing email.");
+  }
+
+  const patient = appointment.patient;
+
+  const email = appointment.email || patient?.email;
+
+  const patientName =
+    appointment.patientName ||
+    patient?.name ||
+    "Patient";
+
+  if (!email) {
+    throw new Error(
+      `No patient email found for appointment ${appointment._id}.`
+    );
+  }
+
+  if (appointment.tokenNumber == null) {
+    throw new Error(
+      `No token number found for appointment ${appointment._id}.`
+    );
+  }
+
+  return {
+    ...appointment.toObject(),
+    email,
+    patientName,
+    treatment: appointment.treatment || "Dental consultation",
+    appointmentDate: appointment.appointmentDate,
+    appointmentTime: appointment.appointmentTime,
+    tokenNumber: appointment.tokenNumber,
+  };
+};
 // --------------------------------------------------
 // 1. GIVE TOKEN TO A CONFIRMED PATIENT
 // PATCH /api/queue/:appointmentId/give-token
@@ -154,16 +210,33 @@ router.patch(
         });
       }
 
-      // Send the token email without delaying the response.
-      sendEmailSafely(
-        sendTokenEmail(updatedAppointment),
-        "Queue token notification"
-      );
+      // Send token notification without undoing the assigned token.
+let emailResult;
 
-      return res.status(200).json({
-        message: `Token ${updatedAppointment.tokenNumber} assigned successfully`,
-        appointment: updatedAppointment,
-      });
+try {
+  const emailAppointment = await getAppointmentEmailDetails(
+    updatedAppointment._id
+  );
+
+  emailResult = await sendEmailSafely(
+    sendTokenEmail(emailAppointment),
+    "Queue token notification"
+  );
+} catch (error) {
+  console.error("[EMAIL ERROR] Queue token notification:", error.message);
+
+  emailResult = {
+    emailSent: false,
+    emailMessage:
+      "The token was assigned, but the notification email could not be sent.",
+  };
+}
+
+return res.status(200).json({
+  message: `Token ${updatedAppointment.tokenNumber} assigned successfully`,
+  appointment: updatedAppointment,
+  ...emailResult,
+});
     } catch (error) {
       console.error("Give token error:", error);
 
@@ -202,7 +275,7 @@ router.patch("/:appointmentId/call", adminMiddleware, async (req, res) => {
         },
       },
       {
-        new: true,
+        returnDocument: "after",
         runValidators: true,
       }
     );
@@ -224,15 +297,33 @@ router.patch("/:appointmentId/call", adminMiddleware, async (req, res) => {
       });
     }
 
-    sendEmailSafely(
-      sendTokenCalledEmail(updatedAppointment),
-      "Token-called notification"
-    );
+    // Send token-called notification without undoing the queue update.
+let emailResult;
 
-    return res.status(200).json({
-      message: `Token ${updatedAppointment.tokenNumber} has been called`,
-      appointment: updatedAppointment,
-    });
+try {
+  const emailAppointment = await getAppointmentEmailDetails(
+    updatedAppointment._id
+  );
+
+  emailResult = await sendEmailSafely(
+    sendTokenCalledEmail(emailAppointment),
+    "Token-called notification"
+  );
+} catch (error) {
+  console.error("[EMAIL ERROR] Token-called notification:", error.message);
+
+  emailResult = {
+    emailSent: false,
+    emailMessage:
+      "The token was called, but the notification email could not be sent.",
+  };
+}
+
+return res.status(200).json({
+  message: `Token ${updatedAppointment.tokenNumber} has been called`,
+  appointment: updatedAppointment,
+  ...emailResult,
+});
   } catch (error) {
     console.error("Call token error:", error);
 

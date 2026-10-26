@@ -1,41 +1,56 @@
+
 const express = require("express");
 const mongoose = require("mongoose");
 
+const {
+  generateInvoicePDF,
+  generatePaymentReceiptPDF,
+} = require("../utils/pdfGenerator");
+
 const Invoice = require("../models/Invoice");
 const Appointment = require("../models/Appointment");
+
 const authMiddleware = require("../middleware/authMiddleware");
 const adminMiddleware = require("../middleware/adminMiddleware");
 
 const router = express.Router();
+const {
+  sendPaymentConfirmationEmail,
+} = require("../utils/sendEmail");
 
 // ============================================================
-// HELPER: VALIDATE MONGODB OBJECT IDS
+// HELPERS
 // ============================================================
 
 const isValidId = (id) => mongoose.isValidObjectId(id);
 
-// ============================================================
-// HELPER: CALCULATE MONEY TO TWO DECIMAL PLACES
-// ============================================================
-
-const money = (amount) => Math.round((amount + Number.EPSILON) * 100) / 100;
-
-// ============================================================
-// HELPER: GENERATE INVOICE NUMBER
-// ============================================================
+const money = (amount) =>
+  Math.round((Number(amount) + Number.EPSILON) * 100) / 100;
 
 const generateInvoiceNumber = () => {
   const date = new Date();
+
   const datePart = [
     date.getFullYear(),
     String(date.getMonth() + 1).padStart(2, "0"),
     String(date.getDate()).padStart(2, "0"),
   ].join("");
 
-  const randomPart = Math.random().toString(36).slice(2, 8).toUpperCase();
+  const randomPart = Math.random()
+    .toString(36)
+    .slice(2, 8)
+    .toUpperCase();
 
   return `ORA-${datePart}-${randomPart}`;
 };
+
+const populateInvoice = (query) =>
+  query
+    .populate("patient", "name email phone")
+    .populate(
+      "appointment",
+      "treatment appointmentDate appointmentTime"
+    );
 
 // ============================================================
 // PATIENT: GET OWN INVOICES
@@ -53,7 +68,10 @@ router.get("/mine", authMiddleware, async (req, res) => {
     const invoices = await Invoice.find({
       patient: req.user.id,
     })
-      .populate("appointment", "treatment appointmentDate appointmentTime")
+      .populate(
+        "appointment",
+        "treatment appointmentDate appointmentTime"
+      )
       .sort({ createdAt: -1 })
       .lean();
 
@@ -66,6 +84,126 @@ router.get("/mine", authMiddleware, async (req, res) => {
     });
   }
 });
+
+// ============================================================
+// PATIENT: DOWNLOAD OWN INVOICE PDF
+// GET /api/invoices/mine/:id/pdf
+// ============================================================
+
+router.get("/mine/:id/pdf", authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== "patient") {
+      return res.status(403).json({
+        message: "This endpoint is available to patients only.",
+      });
+    }
+
+    const { id } = req.params;
+
+    if (!isValidId(id)) {
+      return res.status(400).json({
+        message: "Invalid invoice ID.",
+      });
+    }
+
+    // A patient can only download their own invoice.
+    const invoice = await Invoice.findOne({
+      _id: id,
+      patient: req.user.id,
+    })
+      .populate("patient", "name email phone")
+      .populate(
+        "appointment",
+        "treatment appointmentDate appointmentTime"
+      )
+      .lean();
+
+    if (!invoice) {
+      return res.status(404).json({
+        message: "Invoice not found.",
+      });
+    }
+
+    return generateInvoicePDF(invoice, res);
+  } catch (error) {
+    console.error("Patient invoice PDF error:", error);
+
+    if (!res.headersSent) {
+      return res.status(500).json({
+        message: "Failed to generate invoice PDF.",
+      });
+    }
+
+    res.destroy(error);
+  }
+});
+
+// ============================================================
+// PATIENT: DOWNLOAD OWN PAYMENT RECEIPT
+// GET /api/invoices/mine/:id/payments/:paymentId/receipt
+// ============================================================
+
+router.get(
+  "/mine/:id/payments/:paymentId/receipt",
+  authMiddleware,
+  async (req, res) => {
+    try {
+      if (req.user.role !== "patient") {
+        return res.status(403).json({
+          message: "This endpoint is available to patients only.",
+        });
+      }
+
+      const { id, paymentId } = req.params;
+
+      if (!isValidId(id) || !isValidId(paymentId)) {
+        return res.status(400).json({
+          message: "Invalid invoice or payment ID.",
+        });
+      }
+
+      // Enforce invoice ownership in the database query.
+      const invoice = await Invoice.findOne({
+        _id: id,
+        patient: req.user.id,
+      })
+        .populate("patient", "name email phone")
+        .populate(
+          "appointment",
+          "treatment appointmentDate appointmentTime"
+        )
+        .lean();
+
+      if (!invoice) {
+        return res.status(404).json({
+          message: "Invoice not found.",
+        });
+      }
+
+      const payment = (invoice.payments || []).find(
+        (entry) => String(entry._id) === String(paymentId)
+      );
+
+      if (!payment) {
+        return res.status(404).json({
+          message: "Payment receipt not found.",
+        });
+      }
+
+      return generatePaymentReceiptPDF(invoice, payment, res);
+    } catch (error) {
+      console.error("Patient payment receipt error:", error);
+
+      if (!res.headersSent) {
+        return res.status(500).json({
+          message: "Failed to generate payment receipt.",
+        });
+      }
+
+      res.destroy(error);
+    }
+  }
+);
 
 // ============================================================
 // ADMIN: CREATE INVOICE
@@ -90,7 +228,8 @@ router.post("/", adminMiddleware, async (req, res) => {
       items.length === 0
     ) {
       return res.status(400).json({
-        message: "Patient, appointment, and at least one invoice item are required.",
+        message:
+          "Patient, appointment, and at least one invoice item are required.",
       });
     }
 
@@ -101,17 +240,26 @@ router.post("/", adminMiddleware, async (req, res) => {
     }
 
     if (
+      typeof discount !== "number" ||
       !Number.isFinite(discount) ||
-      !Number.isFinite(tax) ||
       discount < 0 ||
+      typeof tax !== "number" ||
+      !Number.isFinite(tax) ||
       tax < 0
     ) {
       return res.status(400).json({
-        message: "Discount and tax must be valid, non-negative numbers.",
+        message:
+          "Discount and tax must be valid, non-negative numbers.",
       });
     }
 
-    // Verify that the patient exists and the appointment belongs to them.
+    if (typeof notes !== "string") {
+      return res.status(400).json({
+        message: "Notes must be text.",
+      });
+    }
+
+    // Confirm the appointment belongs to this patient.
     const appointmentRecord = await Appointment.findOne({
       _id: appointment,
       patient,
@@ -123,21 +271,27 @@ router.post("/", adminMiddleware, async (req, res) => {
       });
     }
 
-    // Only create bills for consultations that have been completed.
+    // Invoice generation is permitted only after completion.
     if (
       appointmentRecord.status !== "Completed" ||
       appointmentRecord.queueStatus !== "Completed"
     ) {
       return res.status(400).json({
-        message: "The appointment must be completed before generating an invoice.",
+        message:
+          "The appointment must be completed before generating an invoice.",
       });
     }
 
-    // Calculate invoice amounts on the server.
-    // Never trust item amounts or totals supplied by the frontend.
+    // Validate every invoice item on the server.
     const validatedItems = [];
 
     for (const item of items) {
+      if (!item || typeof item !== "object") {
+        return res.status(400).json({
+          message: "Invalid invoice item.",
+        });
+      }
+
       const description =
         typeof item.description === "string"
           ? item.description.trim()
@@ -150,11 +304,13 @@ router.post("/", adminMiddleware, async (req, res) => {
         !description ||
         !Number.isSafeInteger(quantity) ||
         quantity < 1 ||
+        typeof unitPrice !== "number" ||
         !Number.isFinite(unitPrice) ||
         unitPrice < 0
       ) {
         return res.status(400).json({
-          message: "Each item needs a description, positive whole-number quantity, and valid unit price.",
+          message:
+            "Each item needs a description, positive whole-number quantity, and valid unit price.",
         });
       }
 
@@ -170,7 +326,10 @@ router.post("/", adminMiddleware, async (req, res) => {
     }
 
     const subtotal = money(
-      validatedItems.reduce((sum, item) => sum + item.amount, 0)
+      validatedItems.reduce(
+        (sum, item) => sum + item.amount,
+        0
+      )
     );
 
     const normalizedDiscount = money(discount);
@@ -186,10 +345,11 @@ router.post("/", adminMiddleware, async (req, res) => {
       subtotal - normalizedDiscount + normalizedTax
     );
 
-    // Retry if a randomly generated invoice number collides.
-    let invoice;
+    let invoice = null;
     let attempts = 0;
 
+    // Retry if the generated invoice number conflicts with
+    // a unique database index.
     while (!invoice && attempts < 5) {
       attempts += 1;
 
@@ -207,7 +367,7 @@ router.post("/", adminMiddleware, async (req, res) => {
           balanceDue: totalAmount,
           status: "Unpaid",
           payments: [],
-          notes: typeof notes === "string" ? notes.trim() : "",
+          notes: notes.trim(),
           createdBy: req.user.id,
         });
       } catch (error) {
@@ -239,10 +399,11 @@ router.post("/", adminMiddleware, async (req, res) => {
 
 router.get("/", adminMiddleware, async (req, res) => {
   try {
-    const invoices = await Invoice.find()
-      .populate("patient", "name email phone")
-      .populate("appointment", "treatment appointmentDate appointmentTime")
-      .sort({ createdAt: -1 });
+    const invoices = await populateInvoice(
+      Invoice.find()
+    )
+      .sort({ createdAt: -1 })
+      .lean();
 
     return res.status(200).json(invoices);
   } catch (error) {
@@ -255,33 +416,48 @@ router.get("/", adminMiddleware, async (req, res) => {
 });
 
 // ============================================================
-// ADMIN: RECORD A PAYMENT
+// ADMIN: RECORD PAYMENT AND SEND CONFIRMATION EMAIL
 // POST /api/invoices/:id/payments
 // ============================================================
 
 router.post("/:id/payments", adminMiddleware, async (req, res) => {
   try {
-    const { amount, method, transactionReference = "" } = req.body;
+    const {
+      amount,
+      method,
+      transactionReference = "",
+    } = req.body;
 
-    if (!isValidId(req.params.id)) {
+    const { id } = req.params;
+
+    if (!isValidId(id)) {
       return res.status(400).json({
         message: "Invalid invoice ID.",
       });
     }
 
+    const allowedMethods = [
+      "Cash",
+      "UPI",
+      "Card",
+      "Bank Transfer",
+    ];
+
     if (
+      typeof amount !== "number" ||
       !Number.isFinite(amount) ||
       amount <= 0 ||
-      !["Cash", "UPI", "Card", "Bank Transfer"].includes(method)
+      !allowedMethods.includes(method)
     ) {
       return res.status(400).json({
-        message: "Enter a valid payment amount and payment method.",
+        message:
+          "Enter a valid payment amount and payment method.",
       });
     }
 
     if (
       typeof transactionReference !== "string" ||
-      transactionReference.length > 200
+      transactionReference.trim().length > 200
     ) {
       return res.status(400).json({
         message: "Invalid transaction reference.",
@@ -296,7 +472,7 @@ router.post("/:id/payments", adminMiddleware, async (req, res) => {
       });
     }
 
-    const invoice = await Invoice.findById(req.params.id);
+    const invoice = await Invoice.findById(id);
 
     if (!invoice) {
       return res.status(404).json({
@@ -304,13 +480,26 @@ router.post("/:id/payments", adminMiddleware, async (req, res) => {
       });
     }
 
-    if (normalizedAmount > money(invoice.balanceDue)) {
+    const currentBalance = money(invoice.balanceDue);
+
+    if (currentBalance <= 0) {
       return res.status(400).json({
-        message: `Payment exceeds the outstanding balance of ₹${money(invoice.balanceDue).toFixed(2)}.`,
+        message: "This invoice has no outstanding balance.",
       });
     }
 
-    // Update payment history and balances.
+    if (normalizedAmount > currentBalance) {
+      return res.status(400).json({
+        message: `Payment exceeds the outstanding balance of ₹${currentBalance.toFixed(2)}.`,
+      });
+    }
+
+    // Keep the previous paid amount for the email.
+    const previousAmountPaid = money(
+      Number(invoice.amountPaid || 0)
+    );
+
+    // Record the payment.
     invoice.payments.push({
       amount: normalizedAmount,
       method,
@@ -319,32 +508,82 @@ router.post("/:id/payments", adminMiddleware, async (req, res) => {
       receivedBy: req.user.id,
     });
 
-    invoice.amountPaid = money(invoice.amountPaid + normalizedAmount);
-    invoice.balanceDue = money(invoice.totalAmount - invoice.amountPaid);
+    invoice.amountPaid = money(
+      previousAmountPaid + normalizedAmount
+    );
+
+    invoice.balanceDue = money(
+      Number(invoice.totalAmount) - invoice.amountPaid
+    );
 
     if (invoice.balanceDue <= 0) {
-      invoice.amountPaid = invoice.totalAmount;
+      invoice.amountPaid = money(invoice.totalAmount);
       invoice.balanceDue = 0;
       invoice.status = "Paid";
-    } else if (invoice.amountPaid > 0) {
-      invoice.status = "Partially Paid";
     } else {
-      invoice.status = "Unpaid";
+      invoice.status = "Partially Paid";
     }
 
+    // Save the payment before attempting to send the email.
     await invoice.save();
 
-    const populatedInvoice = await Invoice.findById(invoice._id)
-      .populate("patient", "name email phone")
-      .populate("appointment", "treatment appointmentDate appointmentTime");
+    const savedPayment =
+      invoice.payments[invoice.payments.length - 1];
+
+    // Fetch the populated invoice for the response and email.
+    const populatedInvoice = await populateInvoice(
+      Invoice.findById(invoice._id)
+    );
+
+    if (!populatedInvoice) {
+      console.error(
+        "Payment saved, but invoice could not be reloaded:",
+        String(invoice._id)
+      );
+
+      return res.status(200).json({
+        message:
+          "Payment recorded successfully, but invoice details could not be reloaded.",
+        invoice: invoice.toObject(),
+        payment: savedPayment,
+        emailSent: false,
+      });
+    }
+
+    // Email failure must not undo or misreport a saved payment.
+    let emailSent = false;
+
+    try {
+      await sendPaymentConfirmationEmail(
+        populatedInvoice,
+        savedPayment,
+        previousAmountPaid
+      );
+
+      emailSent = true;
+
+      console.log(
+        `Payment confirmation email sent for invoice ${invoice.invoiceNumber}.`
+      );
+    } catch (emailError) {
+      console.error(
+        `Payment was saved, but confirmation email failed for invoice ${invoice.invoiceNumber}:`,
+        emailError.message
+      );
+    }
+
+    const responseMessage =
+      invoice.status === "Paid"
+        ? "Payment recorded. Invoice is fully paid."
+        : "Payment recorded successfully.";
 
     return res.status(200).json({
-      message:
-        invoice.status === "Paid"
-          ? "Payment recorded. Invoice is fully paid."
-          : "Payment recorded successfully.",
+      message: emailSent
+        ? `${responseMessage} Confirmation email sent.`
+        : `${responseMessage} However, the confirmation email could not be sent.`,
       invoice: populatedInvoice,
-      payment: invoice.payments[invoice.payments.length - 1],
+      payment: savedPayment,
+      emailSent,
     });
   } catch (error) {
     console.error("Recording payment error:", error);
@@ -356,21 +595,79 @@ router.post("/:id/payments", adminMiddleware, async (req, res) => {
 });
 
 // ============================================================
+// ADMIN: DOWNLOAD PAYMENT RECEIPT
+// GET /api/invoices/:id/payments/:paymentId/receipt
+// ============================================================
+
+router.get(
+  "/:id/payments/:paymentId/receipt",
+  adminMiddleware,
+  async (req, res) => {
+    try {
+      const { id, paymentId } = req.params;
+
+      if (!isValidId(id) || !isValidId(paymentId)) {
+        return res.status(400).json({
+          message: "Invalid invoice or payment ID.",
+        });
+      }
+
+      const invoice = await populateInvoice(
+        Invoice.findById(id)
+      ).lean();
+
+      if (!invoice) {
+        return res.status(404).json({
+          message: "Invoice not found.",
+        });
+      }
+
+      const payment = (invoice.payments || []).find(
+        (entry) => String(entry._id) === String(paymentId)
+      );
+
+      if (!payment) {
+        return res.status(404).json({
+          message: "Payment receipt not found.",
+        });
+      }
+
+      return generatePaymentReceiptPDF(invoice, payment, res);
+    } catch (error) {
+      console.error("Admin payment receipt error:", error);
+
+      if (!res.headersSent) {
+        return res.status(500).json({
+          message: "Failed to generate payment receipt.",
+        });
+      }
+
+      res.destroy(error);
+    }
+  }
+);
+
+// ============================================================
 // ADMIN: GET SINGLE INVOICE AND PAYMENT HISTORY
 // GET /api/invoices/:id
 // ============================================================
 
 router.get("/:id", adminMiddleware, async (req, res) => {
   try {
-    if (!isValidId(req.params.id)) {
+    const { id } = req.params;
+
+    if (!isValidId(id)) {
       return res.status(400).json({
         message: "Invalid invoice ID.",
       });
     }
 
-    const invoice = await Invoice.findById(req.params.id)
+    const invoice = await Invoice.findById(id)
       .populate("patient", "name email phone")
-      .populate("appointment", "treatment appointmentDate appointmentTime")
+      .populate(
+        "appointment",
+        "treatment appointmentDate appointmentTime"
+      )
       .populate("payments.receivedBy", "name email")
       .populate("createdBy", "name email");
 
@@ -387,6 +684,51 @@ router.get("/:id", adminMiddleware, async (req, res) => {
     return res.status(500).json({
       message: "Failed to fetch invoice.",
     });
+  }
+});
+
+// ============================================================
+// ADMIN: DOWNLOAD INVOICE PDF
+// GET /api/invoices/:id/pdf
+// ============================================================
+
+router.get("/:id/pdf", adminMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!isValidId(id)) {
+      return res.status(400).json({
+        message: "Invalid invoice ID.",
+      });
+    }
+
+    const invoice = await Invoice.findById(id)
+      .populate("patient", "name email phone")
+      .populate(
+        "appointment",
+        "treatment appointmentDate appointmentTime"
+      )
+      .populate("payments.receivedBy", "name email")
+      .populate("createdBy", "name email")
+      .lean();
+
+    if (!invoice) {
+      return res.status(404).json({
+        message: "Invoice not found.",
+      });
+    }
+
+    return generateInvoicePDF(invoice, res);
+  } catch (error) {
+    console.error("Admin invoice PDF error:", error);
+
+    if (!res.headersSent) {
+      return res.status(500).json({
+        message: "Failed to generate invoice PDF.",
+      });
+    }
+
+    res.destroy(error);
   }
 });
 

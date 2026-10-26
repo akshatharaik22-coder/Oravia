@@ -316,7 +316,317 @@ Contact the clinic if you need clarification.
     `,
   });
 };
+// 6. Email a payment confirmation to the patient.
+const sendPaymentConfirmationEmail = async (
+  invoice,
+  payment,
+  previousAmountPaid = 0
+) => {
+  const patient = invoice?.patient;
 
+  if (!patient?.email) {
+    throw new Error(
+      "Patient has no registered email address for payment confirmation."
+    );
+  }
+
+  if (!payment) {
+    throw new Error("Payment details are missing.");
+  }
+
+  const escapeHtml = (value = "") =>
+    String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
+  const money = (amount) =>
+    new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      minimumFractionDigits: 2,
+    }).format(Number(amount) || 0);
+
+  const patientName = escapeHtml(patient.name || "Patient");
+  const invoiceNumber = escapeHtml(
+    invoice.invoiceNumber || "Not available"
+  );
+
+  const paymentMethod = escapeHtml(
+    payment.method || "Not specified"
+  );
+
+  const transactionReference = String(
+    payment.transactionReference || ""
+  ).trim();
+
+  const paidAt = payment.paidAt
+    ? new Date(payment.paidAt)
+    : new Date();
+
+  const formattedDate = Number.isNaN(paidAt.getTime())
+    ? "Not available"
+    : paidAt.toLocaleString("en-IN", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
+
+  const paymentAmount = Number(payment.amount) || 0;
+  const totalAmount = Number(invoice.totalAmount) || 0;
+  const amountPaid = Number(invoice.amountPaid) || 0;
+  const balanceDue = Number(invoice.balanceDue) || 0;
+
+  const previousPaid = Math.max(
+    0,
+    Number(previousAmountPaid) || 0
+  );
+
+  const fullyPaid = invoice.status === "Paid";
+
+  const paymentStatus = fullyPaid
+    ? "Fully Paid"
+    : balanceDue > 0
+      ? "Partially Paid"
+      : invoice.status || "Payment Recorded";
+
+  const subject = `ORAVIA - Payment Confirmation - ${invoice.invoiceNumber}`;
+
+  const text = `
+ORAVIA Dental Clinic
+Payment Confirmation
+
+Dear ${patient.name || "Patient"},
+
+Your payment has been recorded successfully by ORAVIA Dental Clinic.
+
+Payment Details
+----------------
+Invoice Number: ${invoice.invoiceNumber || "Not available"}
+Payment Date: ${formattedDate}
+Payment Method: ${payment.method || "Not specified"}
+${transactionReference ? `Transaction Reference: ${transactionReference}` : ""}
+
+Amount Received: ${money(paymentAmount)}
+Previously Paid: ${money(previousPaid)}
+Total Invoice Amount: ${money(totalAmount)}
+Total Paid After This Payment: ${money(amountPaid)}
+Outstanding Balance: ${money(balanceDue)}
+
+Invoice Status: ${paymentStatus}
+
+${fullyPaid
+    ? "Your invoice has been fully paid. Thank you!"
+    : `Your remaining outstanding balance is ${money(balanceDue)}.`}
+
+Please retain this email for your records.
+
+Thank you for choosing ORAVIA Dental Clinic.
+  `.trim();
+
+  const html = `
+    <div style="
+      max-width: 650px;
+      margin: 20px auto;
+      font-family: Arial, sans-serif;
+      color: #263238;
+      line-height: 1.7;
+      border: 1px solid #dce5e5;
+      border-radius: 12px;
+      overflow: hidden;
+    ">
+      <div style="
+        background: #0f766e;
+        color: #ffffff;
+        padding: 25px;
+      ">
+        <h1 style="margin: 0;">ORAVIA</h1>
+        <p style="margin: 4px 0 0;">Dental Clinic</p>
+      </div>
+
+      <div style="padding: 25px;">
+        <h2 style="margin-top: 0;">
+          Payment Confirmation
+        </h2>
+
+        <p>Dear ${patientName},</p>
+
+        <p>
+          Your payment has been recorded successfully by
+          ORAVIA Dental Clinic.
+        </p>
+
+        <div style="
+          background: #e5f6f3;
+          border-radius: 10px;
+          padding: 20px;
+          margin: 20px 0;
+          text-align: center;
+        ">
+          <p style="margin: 0; color: #126b64;">
+            Amount Received
+          </p>
+
+          <h1 style="
+            margin: 8px 0;
+            color: #126b64;
+          ">
+            ${money(paymentAmount)}
+          </h1>
+
+          <p style="margin: 0;">
+            ${escapeHtml(formattedDate)}
+          </p>
+        </div>
+
+        <h3>Payment Details</h3>
+
+        <table style="
+          width: 100%;
+          border-collapse: collapse;
+        ">
+          <tbody>
+            <tr>
+              <td style="padding: 9px; border-bottom: 1px solid #eee;">
+                Invoice Number
+              </td>
+              <td style="
+                padding: 9px;
+                border-bottom: 1px solid #eee;
+                text-align: right;
+                font-weight: bold;
+              ">
+                ${invoiceNumber}
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding: 9px; border-bottom: 1px solid #eee;">
+                Payment Method
+              </td>
+              <td style="
+                padding: 9px;
+                border-bottom: 1px solid #eee;
+                text-align: right;
+              ">
+                ${paymentMethod}
+              </td>
+            </tr>
+
+            ${
+              transactionReference
+                ? `
+                  <tr>
+                    <td style="padding: 9px; border-bottom: 1px solid #eee;">
+                      Transaction Reference
+                    </td>
+                    <td style="
+                      padding: 9px;
+                      border-bottom: 1px solid #eee;
+                      text-align: right;
+                      overflow-wrap: anywhere;
+                    ">
+                      ${escapeHtml(transactionReference)}
+                    </td>
+                  </tr>
+                `
+                : ""
+            }
+
+            <tr>
+              <td style="padding: 9px; border-bottom: 1px solid #eee;">
+                Previously Paid
+              </td>
+              <td style="
+                padding: 9px;
+                border-bottom: 1px solid #eee;
+                text-align: right;
+              ">
+                ${money(previousPaid)}
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding: 9px; border-bottom: 1px solid #eee;">
+                Total Invoice Amount
+              </td>
+              <td style="
+                padding: 9px;
+                border-bottom: 1px solid #eee;
+                text-align: right;
+              ">
+                ${money(totalAmount)}
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding: 9px; border-bottom: 1px solid #eee;">
+                Total Paid
+              </td>
+              <td style="
+                padding: 9px;
+                border-bottom: 1px solid #eee;
+                text-align: right;
+              ">
+                ${money(amountPaid)}
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding: 12px 9px; font-weight: bold;">
+                Outstanding Balance
+              </td>
+              <td style="
+                padding: 12px 9px;
+                text-align: right;
+                font-weight: bold;
+                color: ${balanceDue > 0 ? "#b45309" : "#0f766e"};
+              ">
+                ${money(balanceDue)}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p style="
+          margin-top: 20px;
+          padding: 12px;
+          background: #f4f7f7;
+          border-radius: 8px;
+        ">
+          <strong>Invoice Status:</strong>
+          ${escapeHtml(paymentStatus)}
+        </p>
+
+        <p>
+          ${
+            fullyPaid
+              ? "Your invoice has been fully paid. Thank you for choosing ORAVIA!"
+              : `Your remaining outstanding balance is <strong>${money(balanceDue)}</strong>.`
+          }
+        </p>
+
+        <p>
+          Please retain this email for your records.
+        </p>
+
+        <p>
+          Thank you for choosing
+          <strong>ORAVIA Dental Clinic</strong>.
+        </p>
+      </div>
+    </div>
+  `;
+
+  await transporter.sendMail({
+    from: `"ORAVIA Dental Clinic" <${process.env.EMAIL_USER}>`,
+    to: patient.email,
+    subject,
+    text,
+    html,
+  });
+};
 // Export all four email functions.
 module.exports = {
   sendAppointmentEmail,
@@ -324,4 +634,5 @@ module.exports = {
   sendTokenEmail,
   sendTokenCalledEmail,
   sendPrescriptionEmail,
+  sendPaymentConfirmationEmail,
 };
