@@ -1,91 +1,105 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
+import API_BASE_URL from "../config/api";
+import "./Booking.css";
+
+const initialForm = {
+  patientName: "",
+  phone: "",
+  email: "",
+  treatment: "",
+  appointmentDate: "",
+  appointmentTime: "",
+  symptoms: "",
+};
 
 function Booking() {
   const navigate = useNavigate();
 
-  const [user, setUser] = useState(null);
-
-  const [formData, setFormData] = useState({
-    treatment: "",
-    appointmentDate: "",
-    appointmentTime: "",
-    symptoms: "",
-  });
-
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    const token = localStorage.getItem("oraviaToken");
-
-    if (!token) {
-      navigate("/login");
-      return;
-    }
-
-    const savedUser = localStorage.getItem("oraviaUser");
-
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-  }, [navigate]);
+  const today = new Date();
+  const minDate = [
+    today.getFullYear(),
+    String(today.getMonth() + 1).padStart(2, "0"),
+    String(today.getDate()).padStart(2, "0"),
+  ].join("-");
 
   const handleChange = (event) => {
     const { name, value } = event.target;
 
-    setFormData((previousData) => ({
-      ...previousData,
+    setForm((previous) => ({
+      ...previous,
       [name]: value,
     }));
 
     setError("");
-    setSuccess("");
+    setMessage("");
   };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
 
     setError("");
-    setSuccess("");
+    setMessage("");
 
     const token = localStorage.getItem("oraviaToken");
 
     if (!token) {
-      navigate("/login");
+      navigate("/login", {
+        state: { from: "/booking" },
+      });
       return;
     }
 
-    try {
-      setLoading(true);
+    if (form.appointmentDate < minDate) {
+      setError("Please choose today or a future date.");
+      return;
+    }
 
+    setLoading(true);
+
+    try {
       const response = await axios.post(
-        "http://localhost:5000/api/appointments",
-        formData,
+        `${API_BASE_URL}/api/appointments`,
+        {
+          ...form,
+          patientName: form.patientName.trim(),
+          phone: form.phone.trim(),
+          email: form.email.trim().toLowerCase(),
+        },
         {
           headers: {
             Authorization: `Bearer ${token}`,
           },
+          timeout: 15000,
         }
       );
 
-      setSuccess(
-        response.data.message ||
-          "Appointment booked successfully."
+      setMessage(
+        response.data?.message ||
+          "Your appointment request has been submitted."
       );
 
-      setFormData({
-        treatment: "",
-        appointmentDate: "",
-        appointmentTime: "",
-        symptoms: "",
-      });
-    } catch (error) {
+      setForm(initialForm);
+    } catch (err) {
+      if (err.response?.status === 401) {
+        localStorage.removeItem("oraviaToken");
+        localStorage.removeItem("oraviaUser");
+
+        navigate("/login", {
+          state: { from: "/booking" },
+        });
+        return;
+      }
+
       setError(
-        error.response?.data?.message ||
-          "Failed to book appointment. Please try again."
+        err.response?.data?.message ||
+          "Unable to submit your appointment. Please try again."
       );
     } finally {
       setLoading(false);
@@ -93,219 +107,273 @@ function Booking() {
   };
 
   return (
-    <main className="page-shell">
-      <section className="page-hero">
-        <p className="section-label">APPOINTMENT</p>
+    <div className="oravia-booking-page">
+      <header className="booking-header">
+        <button
+          className="booking-brand"
+          onClick={() => navigate("/")}
+          aria-label="Return to ORAVIA home"
+        >
+          <span className="booking-brand-icon">O</span>
 
-        <h1>
-          Schedule your
-          <br />
-          dental visit.
-        </h1>
+          <span>
+            <strong>ORAVIA</strong>
+            <small>DENTAL CARE</small>
+          </span>
+        </button>
 
-        <p>
-          Choose your treatment, preferred date, and available
-          time. Your appointment will be linked to your ORAVIA
-          patient account automatically.
-        </p>
-      </section>
+        <button
+          className="booking-back-button"
+          onClick={() => navigate("/")}
+        >
+          ← Back to home
+        </button>
+      </header>
 
-      <section className="booking-form-section">
-        <div className="booking-form-card">
+      <main>
+        <section className="booking-intro">
+          <p className="booking-eyebrow">
+            YOUR JOURNEY TO A HEALTHIER SMILE
+          </p>
 
-          <div className="booking-form-header">
-            <div>
-              <p className="section-label">PATIENT</p>
+          <h1>
+            Let's make time
+            <br />
+            <span>for your smile.</span>
+          </h1>
 
-              <h2>
-                {user?.name || "Patient"}
-              </h2>
+          <p>
+            Tell us a little about yourself and your preferred
+            appointment. Our team can help you take the next step
+            toward better dental health.
+          </p>
+        </section>
 
-              <p>
-                {user?.email}
-              </p>
+        <section className="booking-content">
+          <div className="booking-information">
+            <span className="booking-information-icon">✦</span>
+
+            <p className="booking-eyebrow">A BETTER DENTAL EXPERIENCE</p>
+
+            <h2>Care begins with a conversation.</h2>
+
+            <p>
+              Share your details and select the treatment
+              you are interested in. Please provide accurate
+              contact information so the clinic can follow up.
+            </p>
+
+            <div className="booking-info-item">
+              <span>01</span>
+              <div>
+                <strong>Tell us about yourself</strong>
+                <p>Enter your contact details.</p>
+              </div>
             </div>
 
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={() => navigate("/dashboard")}
-            >
-              View dashboard
-            </button>
+            <div className="booking-info-item">
+              <span>02</span>
+              <div>
+                <strong>Choose your preferences</strong>
+                <p>Select a treatment and preferred time.</p>
+              </div>
+            </div>
+
+            <div className="booking-info-item">
+              <span>03</span>
+              <div>
+                <strong>Submit your request</strong>
+                <p>The clinic can review your appointment request.</p>
+              </div>
+            </div>
+
+            <div className="booking-note">
+              <span>i</span>
+              <p>
+                Submitting a request does not necessarily mean
+                your appointment is confirmed.
+              </p>
+            </div>
           </div>
 
-
-          <form onSubmit={handleSubmit}>
-
-            <div className="form-row">
-
-              <div className="form-group">
-                <label htmlFor="treatment">
-                  Treatment
-                </label>
-
-                <select
-                  id="treatment"
-                  name="treatment"
-                  value={formData.treatment}
-                  onChange={handleChange}
-                  required
-                >
-                  <option value="">
-                    Select a treatment
-                  </option>
-
-                  <option value="Dental Cleaning">
-                    Dental Cleaning
-                  </option>
-
-                  <option value="Teeth Whitening">
-                    Teeth Whitening
-                  </option>
-
-                  <option value="Root Canal">
-                    Root Canal
-                  </option>
-
-                  <option value="Braces & Alignment">
-                    Braces & Alignment
-                  </option>
-                </select>
+          <div className="booking-form-card">
+            <div className="booking-form-heading">
+              <div>
+                <p className="booking-eyebrow">APPOINTMENT DETAILS</p>
+                <h2>Book your visit</h2>
               </div>
 
-
-              <div className="form-group">
-                <label htmlFor="appointmentDate">
-                  Preferred date
-                </label>
-
-                <input
-                  id="appointmentDate"
-                  name="appointmentDate"
-                  type="date"
-                  value={formData.appointmentDate}
-                  onChange={handleChange}
-                  min={
-                    new Date()
-                      .toISOString()
-                      .split("T")[0]
-                  }
-                  required
-                />
-              </div>
-
+              <span className="booking-required">* Required fields</span>
             </div>
 
-
-            <div className="form-group">
-              <label htmlFor="appointmentTime">
-                Preferred time
-              </label>
-
-              <select
-                id="appointmentTime"
-                name="appointmentTime"
-                value={formData.appointmentTime}
-                onChange={handleChange}
-                required
-              >
-                <option value="">
-                  Select a time
-                </option>
-
-                <option value="09:00 AM">
-                  09:00 AM
-                </option>
-
-                <option value="10:00 AM">
-                  10:00 AM
-                </option>
-
-                <option value="11:00 AM">
-                  11:00 AM
-                </option>
-
-                <option value="02:00 PM">
-                  02:00 PM
-                </option>
-
-                <option value="03:00 PM">
-                  03:00 PM
-                </option>
-
-                <option value="04:00 PM">
-                  04:00 PM
-                </option>
-              </select>
-            </div>
-
-
-            <div className="form-group">
-              <label htmlFor="symptoms">
-                Additional information
-                <span className="optional-label">
-                  Optional
-                </span>
-              </label>
-
-              <textarea
-                id="symptoms"
-                name="symptoms"
-                rows="5"
-                placeholder="Tell us briefly about your concern or reason for the visit."
-                value={formData.symptoms}
-                onChange={handleChange}
-              />
-            </div>
-
-
-            {error && (
-              <p className="form-error">
-                {error}
-              </p>
-            )}
-
-
-            {success && (
-              <div className="form-success">
-                <strong>
-                  Appointment booked successfully.
-                </strong>
-
-                <p>
-                  Your appointment has been added to your
-                  ORAVIA account.
-                </p>
-
+            {message && (
+              <div className="booking-success" role="status">
+                {message}
                 <button
                   type="button"
-                  className="secondary-button"
                   onClick={() => navigate("/dashboard")}
                 >
-                  View my appointment →
+                  View my dashboard →
                 </button>
               </div>
             )}
 
-
-            {!success && (
-              <button
-                type="submit"
-                className="primary-button booking-submit"
-                disabled={loading}
-              >
-                {loading
-                  ? "Booking appointment..."
-                  : "Confirm appointment →"}
-              </button>
+            {error && (
+              <div className="booking-error" role="alert">
+                {error}
+              </div>
             )}
 
-          </form>
+            <form onSubmit={handleSubmit}>
+              <div className="booking-field">
+                <label htmlFor="patientName">Full name *</label>
+                <input
+                  id="patientName"
+                  name="patientName"
+                  type="text"
+                  placeholder="Enter your full name"
+                  value={form.patientName}
+                  onChange={handleChange}
+                  minLength={2}
+                  maxLength={100}
+                  autoComplete="name"
+                  required
+                />
+              </div>
 
-        </div>
-      </section>
-    </main>
+              <div className="booking-form-row">
+                <div className="booking-field">
+                  <label htmlFor="phone">Phone number *</label>
+                  <input
+                    id="phone"
+                    name="phone"
+                    type="tel"
+                    placeholder="Your phone number"
+                    value={form.phone}
+                    onChange={handleChange}
+                    autoComplete="tel"
+                    minLength={7}
+                    maxLength={20}
+                    required
+                  />
+                </div>
+
+                <div className="booking-field">
+                  <label htmlFor="email">Email address *</label>
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    placeholder="you@example.com"
+                    value={form.email}
+                    onChange={handleChange}
+                    autoComplete="email"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="booking-field">
+                <label htmlFor="treatment">Treatment *</label>
+
+                <select
+                  id="treatment"
+                  name="treatment"
+                  value={form.treatment}
+                  onChange={handleChange}
+                  required
+                >
+                  <option value="">Choose a treatment</option>
+                  <option value="General Dentistry">
+                    General Dentistry
+                  </option>
+                  <option value="Teeth Cleaning">
+                    Teeth Cleaning
+                  </option>
+                  <option value="Teeth Whitening">
+                    Teeth Whitening
+                  </option>
+                  <option value="Dental Implants">
+                    Dental Implants
+                  </option>
+                  <option value="Orthodontics">
+                    Orthodontics
+                  </option>
+                  <option value="Cosmetic Dentistry">
+                    Cosmetic Dentistry
+                  </option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <div className="booking-form-row">
+                <div className="booking-field">
+                  <label htmlFor="appointmentDate">Preferred date *</label>
+                  <input
+                    id="appointmentDate"
+                    name="appointmentDate"
+                    type="date"
+                    value={form.appointmentDate}
+                    min={minDate}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
+
+                <div className="booking-field">
+                  <label htmlFor="appointmentTime">Preferred time *</label>
+                  <input
+                    id="appointmentTime"
+                    name="appointmentTime"
+                    type="time"
+                    value={form.appointmentTime}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="booking-field">
+                <label htmlFor="symptoms">
+                  How can we help? <span>(Optional)</span>
+                </label>
+
+                <textarea
+                  id="symptoms"
+                  name="symptoms"
+                  placeholder="Briefly describe your concerns..."
+                  value={form.symptoms}
+                  onChange={handleChange}
+                  rows={4}
+                  maxLength={1000}
+                />
+              </div>
+
+              <button
+                className="booking-submit-button"
+                type="submit"
+                disabled={loading}
+              >
+                {loading ? "Submitting request..." : "Request appointment"}
+                {!loading && <span aria-hidden="true">↗</span>}
+              </button>
+
+              <p className="booking-privacy-note">
+                Your information is submitted to the clinic
+                for appointment processing.
+              </p>
+            </form>
+          </div>
+        </section>
+      </main>
+
+      <footer className="booking-footer">
+        <span>© {new Date().getFullYear()} ORAVIA Dental Care</span>
+        <button onClick={() => navigate("/login")}>
+          Patient sign in
+        </button>
+      </footer>
+    </div>
   );
 }
 

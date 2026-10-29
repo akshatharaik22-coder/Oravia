@@ -1,3 +1,4 @@
+
 const mongoose = require("mongoose");
 
 const medicalRecordSchema = new mongoose.Schema(
@@ -53,6 +54,17 @@ const medicalRecordSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+// Optimize patient-specific medical history queries.
+medicalRecordSchema.index({
+  patient: 1,
+  visitDate: -1,
+});
+
+// Optimize administrative medical history listings.
+medicalRecordSchema.index({
+  visitDate: -1,
+});
 
 module.exports = mongoose.model(
   "MedicalRecord",

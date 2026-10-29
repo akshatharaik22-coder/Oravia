@@ -1,624 +1,430 @@
-
-import { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import API_BASE_URL from "../config/api";
+import "./PatientDashboard.css";
 
-const API = "http://localhost:5000/api";
+const getStoredUser = () => {
+  try {
+    return JSON.parse(localStorage.getItem("oraviaUser") || "null");
+  } catch {
+    return null;
+  }
+};
 
-function PatientDashboard() {
+const formatDate = (dateValue) => {
+  if (!dateValue) return "Date not available";
+
+  const date = new Date(dateValue);
+
+  if (Number.isNaN(date.getTime())) {
+    return String(dateValue);
+  }
+
+  return date.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+};
+
+const formatTime = (timeValue) => {
+  if (!timeValue) return "Time not available";
+
+  const match = String(timeValue).match(
+    /^([01]?\d|2[0-3]):([0-5]\d)$/
+  );
+
+  if (!match) return String(timeValue);
+
+  const date = new Date();
+  date.setHours(Number(match[1]), Number(match[2]), 0, 0);
+
+  return date.toLocaleTimeString("en-IN", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+};
+
+const getStatusClass = (status) =>
+  String(status || "Pending").toLowerCase().replace(/\s+/g, "-");
+
+const getQueueLabel = (status) => {
+  const labels = {
+    Waiting: "Waiting for your turn",
+    Called: "Please proceed when called",
+    "In Consultation": "Consultation in progress",
+    Completed: "Consultation completed",
+    Skipped: "Queue skipped",
+  };
+
+  return labels[status] || "";
+};
+
+export default function PatientDashboard() {
   const navigate = useNavigate();
 
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(getStoredUser);
   const [appointments, setAppointments] = useState([]);
-  const [medicalRecords, setMedicalRecords] = useState([]);
-  const [invoices, setInvoices] = useState([]);
-
   const [loading, setLoading] = useState(true);
-  const [cancellingId, setCancellingId] = useState(null);
-  const [downloadingInvoiceId, setDownloadingInvoiceId] =
-    useState(null);
-  const [downloadingReceiptId, setDownloadingReceiptId] =
-    useState(null);
-  const [downloadingMedicalPDF, setDownloadingMedicalPDF] = useState("");  
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [cancellingId, setCancellingId] = useState(null);
+  const [activeFilter, setActiveFilter] = useState("All");
 
-  useEffect(() => {
+  const loadAppointments = useCallback(async () => {
     const token = localStorage.getItem("oraviaToken");
 
     if (!token) {
-      navigate("/login");
+      navigate("/login", { replace: true });
       return;
     }
 
-    const headers = {
-      Authorization: `Bearer ${token}`,
-    };
+    setLoading(true);
+    setError("");
 
-    const fetchDashboardData = async () => {
-      try {
-        const [
-          profileResponse,
-          appointmentsResponse,
-          medicalRecordsResponse,
-          invoicesResponse,
-        ] = await Promise.all([
-          axios.get(`${API}/auth/me`, { headers }),
-
-          axios.get(`${API}/appointments/mine`, { headers }),
-
-          axios.get(`${API}/medical-records/mine`, { headers }),
-
-          axios.get(`${API}/invoices/mine`, { headers }),
-        ]);
-
-        setUser(profileResponse.data.user);
-        setAppointments(appointmentsResponse.data);
-        setMedicalRecords(medicalRecordsResponse.data);
-        setInvoices(
-          Array.isArray(invoicesResponse.data)
-            ? invoicesResponse.data
-            : invoicesResponse.data.invoices || []
-        );
-
-        localStorage.setItem(
-          "oraviaUser",
-          JSON.stringify(profileResponse.data.user)
-        );
-      } catch (err) {
-        if (err.response?.status === 401) {
-          localStorage.removeItem("oraviaToken");
-          localStorage.removeItem("oraviaUser");
-
-          navigate("/login");
-          return;
-        }
-
-        // Keep the dashboard usable if invoice loading fails.
-        // Other dashboard sections should not disappear just
-        // because the invoice endpoint has a problem.
-        setError(
-          err.response?.data?.message ||
-            "Some dashboard information could not be loaded."
-        );
-
-        // Load each section independently if the combined request fails.
-        try {
-          const token = localStorage.getItem("oraviaToken");
-
-          if (!token) {
-            navigate("/login");
-            return;
-          }
-
-          const headers = {
+    try {
+      const response = await axios.get(
+        `${API_BASE_URL}/api/appointments/mine`,
+        {
+          headers: {
             Authorization: `Bearer ${token}`,
-          };
-
-          const [
-            profileResult,
-            appointmentsResult,
-            recordsResult,
-            invoicesResult,
-          ] = await Promise.allSettled([
-            axios.get(`${API}/auth/me`, { headers }),
-            axios.get(`${API}/appointments/mine`, { headers }),
-            axios.get(`${API}/medical-records/mine`, { headers }),
-            axios.get(`${API}/invoices/mine`, { headers }),
-          ]);
-
-          if (profileResult.status === "fulfilled") {
-            const profile = profileResult.value.data.user;
-
-            setUser(profile);
-
-            localStorage.setItem(
-              "oraviaUser",
-              JSON.stringify(profile)
-            );
-          }
-
-          if (appointmentsResult.status === "fulfilled") {
-            setAppointments(appointmentsResult.value.data);
-          }
-
-          if (recordsResult.status === "fulfilled") {
-            setMedicalRecords(recordsResult.value.data);
-          }
-
-          if (invoicesResult.status === "fulfilled") {
-            const data = invoicesResult.value.data;
-
-            setInvoices(
-              Array.isArray(data) ? data : data.invoices || []
-            );
-          }
-        } catch {
-          // The original error message is retained.
+          },
+          timeout: 15000,
         }
-      } finally {
-        setLoading(false);
-      }
-    };
+      );
 
-    fetchDashboardData();
+      const data = response.data;
+
+      if (!Array.isArray(data)) {
+        throw new Error("Unexpected appointments response");
+      }
+
+      setAppointments(data);
+    } catch (requestError) {
+      if (
+        requestError.response?.status === 401 ||
+        requestError.response?.status === 403
+      ) {
+        localStorage.removeItem("oraviaToken");
+        localStorage.removeItem("oraviaUser");
+
+        navigate("/login", { replace: true });
+        return;
+      }
+
+      setError(
+        requestError.response?.data?.message ||
+          "We couldn't load your appointments. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
   }, [navigate]);
 
-  const handleCancel = async (appointmentId) => {
+  useEffect(() => {
+    loadAppointments();
+  }, [loadAppointments]);
+
+  const handleCancel = async (appointment) => {
+    if (!appointment?._id || cancellingId) return;
+
     const confirmed = window.confirm(
       "Are you sure you want to cancel this appointment?"
     );
 
     if (!confirmed) return;
 
+    const token = localStorage.getItem("oraviaToken");
+
+    if (!token) {
+      navigate("/login", { replace: true });
+      return;
+    }
+
+    setCancellingId(appointment._id);
+    setError("");
+
     try {
-      setCancellingId(appointmentId);
-      setError("");
-      setSuccess("");
-
-      const token = localStorage.getItem("oraviaToken");
-
-      const response = await axios.patch(
-        `${API}/appointments/${appointmentId}/cancel`,
+      await axios.patch(
+        `${API_BASE_URL}/api/appointments/${appointment._id}/cancel`,
         {},
         {
           headers: {
             Authorization: `Bearer ${token}`,
           },
+          timeout: 15000,
         }
       );
 
-      setAppointments((previousAppointments) =>
-        previousAppointments.map((appointment) =>
-          appointment._id === appointmentId
-            ? response.data.appointment
-            : appointment
-        )
-      );
-
-      setSuccess("Your appointment has been cancelled.");
-    } catch (err) {
+      await loadAppointments();
+    } catch (requestError) {
       setError(
-        err.response?.data?.message ||
-          "Failed to cancel appointment."
+        requestError.response?.data?.message ||
+          "Unable to cancel this appointment. Please try again."
       );
     } finally {
       setCancellingId(null);
     }
   };
 
-  const handleDownloadInvoice = async (invoice) => {
-    try {
-      setDownloadingInvoiceId(invoice._id);
-      setError("");
-      setSuccess("");
-
-      const token = localStorage.getItem("oraviaToken");
-
-      const response = await axios.get(
-        `${API}/invoices/mine/${invoice._id}/pdf`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          responseType: "blob",
-        }
-      );
-
-      const blob = new Blob([response.data], {
-        type: "application/pdf",
-      });
-
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-
-      const safeInvoiceNumber = String(
-        invoice.invoiceNumber || invoice._id
-      ).replace(/[^a-zA-Z0-9_-]/g, "_");
-
-      link.href = downloadUrl;
-      link.download = `${safeInvoiceNumber}.pdf`;
-
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-
-      window.URL.revokeObjectURL(downloadUrl);
-
-      setSuccess("Your invoice PDF has been downloaded.");
-    } catch (err) {
-      let message =
-        err.response?.data?.message ||
-        "Unable to download the invoice PDF. Please try again.";
-
-      // Axios returns a Blob for error responses when responseType
-      // is "blob", so read the response to extract its message.
-      if (err.response?.data instanceof Blob) {
-        try {
-          const responseText = await err.response.data.text();
-          const parsedError = JSON.parse(responseText);
-
-          if (parsedError.message) {
-            message = parsedError.message;
-          }
-        } catch {
-          // Keep the fallback message.
-        }
-      }
-
-      setError(message);
-    } finally {
-      setDownloadingInvoiceId(null);
-    }
-  };
-  const handleDownloadReceipt = async (invoice, payment) => {
-  if (!invoice?._id || !payment?._id) {
-    setError("Unable to identify the selected payment.");
-    return;
-  }
-
-  const receiptKey = `${invoice._id}:${payment._id}`;
-
-  try {
-    setDownloadingReceiptId(receiptKey);
-    setError("");
-    setSuccess("");
-
-    const token = localStorage.getItem("oraviaToken");
-
-    if (!token) {
-      navigate("/login");
-      return;
-    }
-
-    const response = await axios.get(
-      `${API}/invoices/mine/${invoice._id}/payments/${payment._id}/receipt`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        responseType: "blob",
-      }
-    );
-
-    const blob = new Blob([response.data], {
-      type: "application/pdf",
-    });
-
-    const downloadUrl = window.URL.createObjectURL(blob);
-    const link = document.createElement("a");
-
-    const safeInvoiceNumber = String(
-      invoice.invoiceNumber || invoice._id
-    ).replace(/[^a-zA-Z0-9_-]/g, "_");
-
-    const paymentReference = String(payment._id).slice(-6);
-
-    link.href = downloadUrl;
-    link.download = `Receipt-${safeInvoiceNumber}-${paymentReference}.pdf`;
-
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-
-    window.setTimeout(() => {
-      window.URL.revokeObjectURL(downloadUrl);
-    }, 1000);
-
-    setSuccess("Your payment receipt has been downloaded.");
-  } catch (err) {
-    console.error("Payment receipt download failed:", err);
-
-    let message =
-      "Unable to download the payment receipt. Please try again.";
-
-    if (err.response?.data instanceof Blob) {
-      try {
-        const responseText = await err.response.data.text();
-        const parsedError = JSON.parse(responseText);
-
-        message = parsedError.message || message;
-      } catch {
-        // Keep the fallback message.
-      }
-    } else if (err.response?.data?.message) {
-      message = err.response.data.message;
-    }
-
-    setError(message);
-  } finally {
-    setDownloadingReceiptId(null);
-  }
-};
-const handleDownloadMedicalPDF = async (record, documentType) => {
-  if (!record?._id) {
-    setError("Unable to identify the selected medical record.");
-    return;
-  }
-
-  const downloadKey = `${record._id}:${documentType}`;
-
-  try {
-    setDownloadingMedicalPDF(downloadKey);
-    setError("");
-    setSuccess("");
-
-    const token = localStorage.getItem("oraviaToken");
-
-    if (!token) {
-      navigate("/login");
-      return;
-    }
-
-    const response = await axios.get(
-      `${API}/medical-records/mine/${record._id}/pdf`,
-      {
-        params: {
-          type: documentType,
-        },
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        responseType: "blob",
-      }
-    );
-
-    const blob = new Blob([response.data], {
-      type: "application/pdf",
-    });
-
-    const downloadUrl = window.URL.createObjectURL(blob);
-    const link = document.createElement("a");
-
-    const safeTreatment = String(record.treatment || "Dental-Care")
-      .trim()
-      .replace(/[^a-zA-Z0-9_-]+/g, "_")
-      .slice(0, 60);
-
-    link.href = downloadUrl;
-    link.download =
-      `ORAVIA-${documentType}-${safeTreatment}-${String(record._id).slice(-6)}.pdf`;
-
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-
-    window.setTimeout(() => {
-      window.URL.revokeObjectURL(downloadUrl);
-    }, 1000);
-
-    setSuccess(
-      documentType === "prescription"
-        ? "Your prescription PDF has been downloaded."
-        : "Your medical report PDF has been downloaded."
-    );
-  } catch (err) {
-    console.error("Medical PDF download failed:", err);
-
-    let message =
-      "Unable to download the medical document. Please try again.";
-
-    if (err.response?.data instanceof Blob) {
-      try {
-        const responseText = await err.response.data.text();
-        const parsedError = JSON.parse(responseText);
-
-        message = parsedError.message || message;
-      } catch {
-        // Retain the fallback message if the response is not JSON.
-      }
-    } else if (err.response?.data?.message) {
-      message = err.response.data.message;
-    }
-
-    setError(message);
-  } finally {
-    setDownloadingMedicalPDF("");
-  }
-};
   const handleLogout = () => {
     localStorage.removeItem("oraviaToken");
     localStorage.removeItem("oraviaUser");
-
-    navigate("/login");
+    navigate("/login", { replace: true });
   };
 
-  const upcomingAppointments = appointments.filter(
+  const displayedAppointments = appointments.filter((appointment) => {
+    if (activeFilter === "All") return true;
+
+    if (activeFilter === "Upcoming") {
+      return (
+        !["Completed", "Cancelled"].includes(appointment.status) &&
+        appointment.status !== "Completed"
+      );
+    }
+
+    return appointment.status === activeFilter;
+  });
+
+  const upcomingCount = appointments.filter(
     (appointment) =>
-      appointment.status !== "Completed" &&
-      appointment.status !== "Cancelled"
-  );
+      !["Completed", "Cancelled"].includes(appointment.status)
+  ).length;
 
-  const appointmentHistory = appointments.filter(
-    (appointment) =>
-      appointment.status === "Completed" ||
-      appointment.status === "Cancelled"
-  );
+  const completedCount = appointments.filter(
+    (appointment) => appointment.status === "Completed"
+  ).length;
 
-  const totalOutstanding = invoices.reduce(
-    (sum, invoice) => sum + (Number(invoice.balanceDue) || 0),
-    0
-  );
-
-  const formatDate = (date) => {
-    if (!date) return "—";
-
-    const parsedDate = new Date(date);
-
-    if (Number.isNaN(parsedDate.getTime())) return "—";
-
-    return parsedDate.toLocaleDateString("en-IN", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-  };
-
-  const formatMoney = (amount) =>
-    new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency: "INR",
-      minimumFractionDigits: 2,
-    }).format(Number(amount) || 0);
-
-  if (loading) {
-    return (
-      <main className="dashboard-page">
-        <section className="dashboard-header">
-          <p>Loading your ORAVIA dashboard...</p>
-        </section>
-      </main>
-    );
-  }
+  const firstName = user?.name?.trim()?.split(/\s+/)[0] || "there";
 
   return (
-    <main className="dashboard-page">
-      <section className="dashboard-header">
-        <div>
-          <p className="section-label">PATIENT DASHBOARD</p>
+    <main className="patient-dashboard">
+      <header className="patient-dashboard-header">
+        <button
+          className="patient-dashboard-brand"
+          onClick={() => navigate("/")}
+          aria-label="ORAVIA home"
+        >
+          <span className="patient-brand-mark">O</span>
 
-          <h1>Welcome, {user?.name}.</h1>
-
-          <p>
-            Manage your appointments and keep track of your ORAVIA
-            dental care journey.
-          </p>
-        </div>
-
-        <button className="secondary-button" onClick={handleLogout}>
-          Sign out
+          <span>
+            ORAVIA
+            <small>YOUR SMILE, OUR CARE</small>
+          </span>
         </button>
-      </section>
 
-      {error && <p className="form-error">{error}</p>}
+        <nav className="patient-header-nav" aria-label="Patient navigation">
+          <button onClick={() => navigate("/")}>Home</button>
+          <button onClick={() => navigate("/services")}>Services</button>
+          <button onClick={() => navigate("/clinics")}>Our Clinics</button>
+        </nav>
 
-      {success && (
-        <p className="form-success-message">{success}</p>
-      )}
-
-      <section className="dashboard-grid">
-        <article className="dashboard-card">
-          <span className="dashboard-card-label">UPCOMING</span>
-
-          <h2>{upcomingAppointments.length}</h2>
-
-          <p>
-            Upcoming appointment
-            {upcomingAppointments.length !== 1 ? "s" : ""}
-          </p>
-        </article>
-
-        <article className="dashboard-card">
-          <span className="dashboard-card-label">HISTORY</span>
-
-          <h2>{appointmentHistory.length}</h2>
-
-          <p>
-            Previous appointment
-            {appointmentHistory.length !== 1 ? "s" : ""}
-          </p>
-        </article>
-
-        <article className="dashboard-card">
-          <span className="dashboard-card-label">
-            MEDICAL RECORDS
+        <div className="patient-header-actions">
+          <span className="patient-account-name">
+            {user?.name || "Patient"}
           </span>
 
-          <h2>{medicalRecords.length}</h2>
+          <button className="patient-logout-button" onClick={handleLogout}>
+            Log out
+          </button>
+        </div>
+      </header>
+
+      <section className="patient-welcome">
+        <div className="patient-welcome-content">
+          <span className="patient-eyebrow">
+            <span /> YOUR PERSONAL SPACE
+          </span>
+
+          <h1>
+            Hello, {firstName}.
+            <br />
+            <em>Let's care for your smile.</em>
+          </h1>
 
           <p>
-            Clinical record
-            {medicalRecords.length !== 1 ? "s" : ""}
+            Keep track of your appointments and stay informed about your
+            dental care journey.
           </p>
-        </article>
-
-        <article className="dashboard-card">
-          <span className="dashboard-card-label">INVOICES</span>
-
-          <h2>{invoices.length}</h2>
-
-          <p>
-            Outstanding: {formatMoney(totalOutstanding)}
-          </p>
-        </article>
-      </section>
-
-      {/* UPCOMING APPOINTMENTS */}
-      <section className="dashboard-section">
-        <div className="dashboard-section-header">
-          <div>
-            <p className="section-label">YOUR CARE</p>
-            <h2>Upcoming appointments</h2>
-          </div>
 
           <button
-            className="primary-button"
+            className="patient-primary-button"
             onClick={() => navigate("/booking")}
           >
-            Book appointment →
+            Book an appointment <span>↗</span>
           </button>
         </div>
 
-        {upcomingAppointments.length === 0 ? (
-          <div className="dashboard-empty">
-            <h3>No upcoming appointments</h3>
+        <div className="patient-welcome-decoration" aria-hidden="true">
+          <div className="patient-decoration-circle">
+            <span>✳</span>
+          </div>
+          <span className="patient-decoration-caption">
+            A little care goes a long way.
+          </span>
+        </div>
+      </section>
 
+      <section className="patient-dashboard-content">
+        <div className="patient-summary-grid">
+          <article className="patient-summary-card">
+            <span className="patient-summary-icon">◷</span>
+            <span className="patient-summary-label">All appointments</span>
+            <strong>{appointments.length}</strong>
+            <span className="patient-summary-caption">
+              Your booking history
+            </span>
+          </article>
+
+          <article className="patient-summary-card patient-summary-highlight">
+            <span className="patient-summary-icon">✳</span>
+            <span className="patient-summary-label">Active appointments</span>
+            <strong>{upcomingCount}</strong>
+            <span className="patient-summary-caption">
+              Awaiting completion
+            </span>
+          </article>
+
+          <article className="patient-summary-card">
+            <span className="patient-summary-icon">✓</span>
+            <span className="patient-summary-label">Completed visits</span>
+            <strong>{completedCount}</strong>
+            <span className="patient-summary-caption">
+              Completed appointments
+            </span>
+          </article>
+        </div>
+
+        <div className="patient-appointments-heading">
+          <div>
+            <span className="patient-section-label">YOUR CARE JOURNEY</span>
+            <h2>My appointments</h2>
+            <p>View your bookings and check their current status.</p>
+          </div>
+
+          <button
+            className="patient-secondary-button"
+            onClick={loadAppointments}
+            disabled={loading}
+          >
+            {loading ? "Refreshing..." : "↻ Refresh"}
+          </button>
+        </div>
+
+        <div className="patient-filter-bar">
+          {["All", "Upcoming", "Pending", "Confirmed", "Completed", "Cancelled"].map(
+            (filter) => (
+              <button
+                key={filter}
+                className={
+                  activeFilter === filter ? "patient-filter-active" : ""
+                }
+                onClick={() => setActiveFilter(filter)}
+              >
+                {filter}
+              </button>
+            )
+          )}
+        </div>
+
+        {error && (
+          <div className="patient-error-message" role="alert">
+            <span>{error}</span>
+            <button onClick={loadAppointments}>Try again</button>
+          </div>
+        )}
+
+        {loading ? (
+          <div className="patient-state-card" role="status">
+            <div className="patient-loading-spinner" />
+            <h3>Loading your appointments</h3>
+            <p>Just a moment while we retrieve your bookings.</p>
+          </div>
+        ) : displayedAppointments.length === 0 ? (
+          <div className="patient-empty-state">
+            <div className="patient-empty-icon">✳</div>
+            <h3>
+              {appointments.length === 0
+                ? "Your smile journey starts here."
+                : "No appointments found."}
+            </h3>
             <p>
-              When you book your next dental visit, it will appear
-              here.
+              {appointments.length === 0
+                ? "You haven't booked an appointment yet. Choose a time that works for you."
+                : "Try selecting another filter to view your appointments."}
             </p>
 
-            <button
-              className="secondary-button"
-              onClick={() => navigate("/booking")}
-            >
-              Schedule a visit
-            </button>
+            {appointments.length === 0 && (
+              <button
+                className="patient-primary-button"
+                onClick={() => navigate("/booking")}
+              >
+                Book your first visit <span>↗</span>
+              </button>
+            )}
           </div>
         ) : (
-          <div className="appointment-list">
-            {upcomingAppointments.map((appointment) => (
+          <div className="patient-appointment-list">
+            {displayedAppointments.map((appointment) => (
               <article
-                className="appointment-card"
+                className="patient-appointment-card"
                 key={appointment._id}
               >
-                <div className="appointment-main">
-                  <span className="appointment-treatment">
-                    {appointment.treatment}
-                  </span>
+                <div className="patient-appointment-date">
+                  <span>{formatDate(appointment.appointmentDate)}</span>
+                  <strong>{formatTime(appointment.appointmentTime)}</strong>
+                </div>
 
-                  <h3>
-                    {formatDate(appointment.appointmentDate)}
-                  </h3>
+                <div className="patient-appointment-details">
+                  <h3>{appointment.treatment || "Dental appointment"}</h3>
 
-                  <p>{appointment.appointmentTime}</p>
+                  <p>
+                    Booking ID:{" "}
+                    <span>{appointment._id.slice(-8).toUpperCase()}</span>
+                  </p>
 
                   {appointment.symptoms && (
-                    <p>{appointment.symptoms}</p>
+                    <p className="patient-appointment-symptoms">
+                      Notes: {appointment.symptoms}
+                    </p>
+                  )}
+
+                  {appointment.tokenNumber && (
+                    <p>
+                      Queue token: <strong>{appointment.tokenNumber}</strong>
+                    </p>
+                  )}
+
+                  {appointment.queueStatus && (
+                    <span className="patient-queue-label">
+                      {getQueueLabel(appointment.queueStatus)}
+                    </span>
                   )}
                 </div>
 
-                <div className="appointment-side">
+                <div className="patient-appointment-actions">
                   <span
-                    className={`appointment-status status-${(
-                      appointment.status || "pending"
-                    ).toLowerCase()}`}
+                    className={`patient-status-badge patient-status-${getStatusClass(
+                      appointment.status
+                    )}`}
                   >
-                    {appointment.status}
+                    {appointment.status || "Pending"}
                   </span>
 
-                  {appointment.status !== "Completed" &&
-                    appointment.status !== "Cancelled" && (
+                  {!["Completed", "Cancelled"].includes(
+                    appointment.status
+                  ) &&
+                    !["In Consultation", "Completed"].includes(
+                      appointment.queueStatus
+                    ) && (
                       <button
-                        className="cancel-button"
-                        onClick={() =>
-                          handleCancel(appointment._id)
-                        }
+                        className="patient-cancel-button"
+                        onClick={() => handleCancel(appointment)}
                         disabled={cancellingId === appointment._id}
                       >
                         {cancellingId === appointment._id
                           ? "Cancelling..."
-                          : "Cancel appointment"}
+                          : "Cancel booking"}
                       </button>
                     )}
                 </div>
@@ -626,309 +432,31 @@ const handleDownloadMedicalPDF = async (record, documentType) => {
             ))}
           </div>
         )}
-      </section>
 
-      {/* APPOINTMENT HISTORY */}
-      <section className="dashboard-section">
-        <div className="dashboard-section-header">
+        <section className="patient-help-card">
+          <div className="patient-help-symbol">✧</div>
+
           <div>
-            <p className="section-label">APPOINTMENT HISTORY</p>
-            <h2>Previous appointments</h2>
-          </div>
-        </div>
-
-        {appointmentHistory.length === 0 ? (
-          <div className="dashboard-empty">
-            <h3>No appointment history yet</h3>
-
+            <h3>Need to book another visit?</h3>
             <p>
-              Completed and cancelled appointments will appear here.
+              Choose a suitable date and time to request your next appointment.
             </p>
           </div>
-        ) : (
-          <div className="appointment-list">
-            {appointmentHistory.map((appointment) => (
-              <article
-                className="appointment-card"
-                key={appointment._id}
-              >
-                <div className="appointment-main">
-                  <span className="appointment-treatment">
-                    {appointment.treatment}
-                  </span>
 
-                  <h3>
-                    {formatDate(appointment.appointmentDate)}
-                  </h3>
-
-                  <p>{appointment.appointmentTime}</p>
-                </div>
-
-                <div className="appointment-side">
-                  <span
-                    className={`appointment-status status-${(
-                      appointment.status || "pending"
-                    ).toLowerCase()}`}
-                  >
-                    {appointment.status}
-                  </span>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
+          <button
+            className="patient-secondary-button"
+            onClick={() => navigate("/booking")}
+          >
+            Book a visit <span>↗</span>
+          </button>
+        </section>
       </section>
 
-      {/* INVOICES AND PAYMENTS */}
-      <section className="dashboard-section">
-        <div className="dashboard-section-header">
-          <div>
-            <p className="section-label">BILLING & PAYMENTS</p>
-
-            <h2>My invoices</h2>
-
-            <p>
-              View your dental care bills, check payment balances,
-              and download your invoice documents.
-            </p>
-          </div>
-        </div>
-
-        {invoices.length === 0 ? (
-          <div className="dashboard-empty">
-            <h3>No invoices available yet</h3>
-
-            <p>
-              Your invoice will appear here when the ORAVIA clinic
-              creates one for your visit.
-            </p>
-          </div>
-        ) : (
-          <div className="patient-invoice-list">
-            {invoices.map((invoice) => (
-              <article
-                className="patient-invoice-card"
-                key={invoice._id}
-              >
-                <div className="patient-invoice-header">
-                  <div>
-                    <p className="section-label">INVOICE NUMBER</p>
-
-                    <h3>
-                      {invoice.invoiceNumber || "Invoice"}
-                    </h3>
-
-                    <p className="patient-invoice-date">
-                      Issued {formatDate(invoice.createdAt)}
-                    </p>
-                  </div>
-
-                  <span
-                    className={`patient-invoice-status patient-invoice-status-${(
-                      invoice.status || "unpaid"
-                    )
-                      .toLowerCase()
-                      .replace(/\s+/g, "-")}`}
-                  >
-                    {invoice.status || "Unpaid"}
-                  </span>
-                </div>
-
-                <div className="patient-invoice-details">
-                  <div>
-                    <span>Treatment / Appointment</span>
-
-                    <strong>
-                      {invoice.appointment?.treatment ||
-                        invoice.items?.[0]?.description ||
-                        "Dental care"}
-                    </strong>
-                  </div>
-
-                  <div>
-                    <span>Total amount</span>
-
-                    <strong>
-                      {formatMoney(invoice.totalAmount)}
-                    </strong>
-                  </div>
-
-                  <div>
-                    <span>Amount paid</span>
-
-                    <strong>
-                      {formatMoney(invoice.amountPaid)}
-                    </strong>
-                  </div>
-
-                  <div>
-                    <span>Balance due</span>
-
-                    <strong
-                      className={
-                        Number(invoice.balanceDue) > 0
-                          ? "patient-invoice-balance-due"
-                          : "patient-invoice-balance-clear"
-                      }
-                    >
-                      {formatMoney(invoice.balanceDue)}
-                    </strong>
-                  </div>
-                </div>
-
-                {invoice.appointment?.appointmentDate && (
-                  <p className="patient-invoice-appointment-date">
-                    Appointment date:{" "}
-                    {formatDate(invoice.appointment.appointmentDate)}
-                  </p>
-                )}
-
-                <div className="patient-invoice-actions">
-  {/* Download invoice */}
-  <button
-    type="button"
-    className="patient-invoice-download"
-    onClick={() => handleDownloadInvoice(invoice)}
-    disabled={downloadingInvoiceId === invoice._id}
-  >
-    {downloadingInvoiceId === invoice._id
-      ? "Preparing PDF..."
-      : "↓ Download invoice PDF"}
-  </button>
-
-  {/* Download individual payment receipts */}
-  {Array.isArray(invoice.payments) &&
-    invoice.payments.map((payment, index) => {
-      const receiptKey = `${invoice._id}:${payment._id}`;
-
-      return (
-        <button
-          key={payment._id || index}
-          type="button"
-          className="patient-receipt-download"
-          onClick={() => handleDownloadReceipt(invoice, payment)}
-          disabled={
-            !payment._id ||
-            downloadingReceiptId === receiptKey
-          }
-        >
-          {downloadingReceiptId === receiptKey
-            ? "Preparing receipt..."
-            : `↓ Download receipt ${index + 1}`}
-        </button>
-      );
-    })}
-</div>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* MEDICAL HISTORY */}
-      <section className="dashboard-section">
-        <div className="dashboard-section-header">
-          <div>
-            <p className="section-label">CLINICAL CARE</p>
-
-            <h2>Medical history</h2>
-
-            <p>
-              View treatment details and clinical information
-              recorded by the ORAVIA care team.
-            </p>
-          </div>
-        </div>
-
-        {medicalRecords.length === 0 ? (
-          <div className="dashboard-empty">
-            <h3>No medical records yet</h3>
-
-            <p>
-              Your clinical records will appear here after your
-              care team records a visit.
-            </p>
-          </div>
-        ) : (
-          <div className="medical-record-list">
-            {medicalRecords.map((record) => (
-              <article
-                className="medical-record-card"
-                key={record._id}
-              >
-                <div className="medical-record-header">
-                  <div>
-                    <p className="section-label">TREATMENT</p>
-
-                    <h3>{record.treatment}</h3>
-                  </div>
-
-                  <div className="medical-record-date">
-                    <span>Visit date</span>
-
-                    <strong>{formatDate(record.visitDate)}</strong>
-                  </div>
-                </div>
-
-                {record.dentalNotes && (
-                  <div className="medical-record-detail">
-                    <span>Dental notes</span>
-                    <p>{record.dentalNotes}</p>
-                  </div>
-                )}
-
-                {record.medications && (
-                  <div className="medical-record-detail">
-                    <span>Medications</span>
-                    <p>{record.medications}</p>
-                  </div>
-                )}
-
-                {record.prescription && (
-                  <div className="medical-record-detail">
-                    <span>Prescription</span>
-                    <p>{record.prescription}</p>
-                  </div>
-                )}
-
-                {record.additionalNotes && (
-                  <div className="medical-record-detail">
-                    <span>Additional notes</span>
-                    <p>{record.additionalNotes}</p>
-                  </div>
-                )}
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* PATIENT PROFILE */}
-      <section className="dashboard-profile">
-        <div>
-          <p className="section-label">PATIENT INFORMATION</p>
-          <h2>Your account</h2>
-        </div>
-
-        <div className="profile-details">
-          <div>
-            <span>Name</span>
-            <strong>{user?.name}</strong>
-          </div>
-
-          <div>
-            <span>Email</span>
-            <strong>{user?.email}</strong>
-          </div>
-
-          <div>
-            <span>Phone</span>
-            <strong>{user?.phone || "Not provided"}</strong>
-          </div>
-        </div>
-      </section>
+      <footer className="patient-dashboard-footer">
+        <button onClick={() => navigate("/")}>ORAVIA</button>
+        <p>Thoughtful dental care. A smile at a time.</p>
+        <span>© {new Date().getFullYear()} ORAVIA</span>
+      </footer>
     </main>
   );
 }
-
-export default PatientDashboard;

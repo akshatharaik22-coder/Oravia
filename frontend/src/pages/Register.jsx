@@ -1,6 +1,8 @@
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import API_BASE_URL from "../config/api.js";
 
 function Register() {
   const navigate = useNavigate();
@@ -19,21 +21,33 @@ function Register() {
   const validateForm = () => {
     const newErrors = {};
 
+    const name = formData.name.trim();
+    const phone = formData.phone.trim();
+    const email = formData.email.trim();
+
     const phonePattern = /^[6-9]\d{9}$/;
 
-    const passwordPattern =/^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[@$!%*?&]).{8,}$/;
+    const passwordPattern =
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[@$!%*?&]).{8,}$/;
 
-    if (!formData.name.trim()) {
+    if (!name) {
       newErrors.name = "Full name is required.";
+    } else if (name.length > 100) {
+      newErrors.name = "Name must not exceed 100 characters.";
     }
 
-    if (!phonePattern.test(formData.phone.trim())) {
+    if (!phonePattern.test(phone)) {
       newErrors.phone =
         "Enter a valid 10-digit Indian mobile number.";
     }
 
-    if (!formData.email.trim()) {
+    if (!email) {
       newErrors.email = "Email address is required.";
+    } else if (
+      email.length > 254 ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+    ) {
+      newErrors.email = "Enter a valid email address.";
     }
 
     if (!passwordPattern.test(formData.password)) {
@@ -57,6 +71,7 @@ function Register() {
     setErrors((previousErrors) => ({
       ...previousErrors,
       [name]: "",
+      general: "",
     }));
 
     setSuccess("");
@@ -65,21 +80,46 @@ function Register() {
   const handleSubmit = async (event) => {
     event.preventDefault();
 
+    if (loading) return;
+
     setSuccess("");
 
     if (!validateForm()) {
       return;
     }
 
-    try {
-      setLoading(true);
+    setLoading(true);
 
+    try {
       const response = await axios.post(
-        "http://localhost:5000/api/auth/register",
-        formData
+        `${API_BASE_URL}/api/auth/register`,
+        {
+          name: formData.name.trim(),
+          phone: formData.phone.trim(),
+          email: formData.email.trim().toLowerCase(),
+          password: formData.password,
+        },
+        {
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          timeout: 15000,
+        }
       );
 
-      setSuccess(response.data.message);
+      // Registration should create an account, not silently
+      // authenticate the user or create an admin session.
+      // Clear previous sessions to avoid cross-role confusion.
+      localStorage.removeItem("oraviaToken");
+      localStorage.removeItem("oraviaUser");
+      localStorage.removeItem("oraviaAdminToken");
+      localStorage.removeItem("oraviaAdminUser");
+
+      setSuccess(
+        response.data?.message ||
+          "Registration successful! Redirecting to login..."
+      );
 
       setFormData({
         name: "",
@@ -88,13 +128,32 @@ function Register() {
         password: "",
       });
 
-      setTimeout(() => {
-        navigate("/login");
+      setErrors({});
+
+      window.setTimeout(() => {
+        navigate("/login", { replace: true });
       }, 1200);
     } catch (error) {
-      const message =
-        error.response?.data?.message ||
-        "Registration failed. Please try again.";
+      let message = "Registration failed. Please try again.";
+
+      if (error.response) {
+        const status = error.response.status;
+
+        if (status === 409) {
+          message =
+            error.response.data?.message ||
+            "An account with this email already exists. Please sign in.";
+        } else {
+          message =
+            error.response.data?.message || message;
+        }
+      } else if (error.code === "ECONNABORTED") {
+        message =
+          "The request timed out. Check your connection before trying again.";
+      } else if (error.code === "ERR_NETWORK") {
+        message =
+          "Unable to connect to the server. Check your connection and backend configuration.";
+      }
 
       setErrors({
         general: message,
@@ -107,7 +166,6 @@ function Register() {
   return (
     <main className="auth-page">
       <section className="auth-card auth-card-wide">
-
         <p className="section-label">NEW PATIENT</p>
 
         <h1>Create your ORAVIA account.</h1>
@@ -118,9 +176,7 @@ function Register() {
         </p>
 
         <form onSubmit={handleSubmit} noValidate>
-
           <div className="form-grid">
-
             <div>
               <label htmlFor="name">Full name</label>
 
@@ -131,13 +187,14 @@ function Register() {
                 placeholder="Your full name"
                 value={formData.name}
                 onChange={handleChange}
+                autoComplete="name"
+                maxLength={100}
                 required
+                disabled={loading}
               />
 
               {errors.name && (
-                <p className="form-error">
-                  {errors.name}
-                </p>
+                <p className="form-error">{errors.name}</p>
               )}
             </div>
 
@@ -153,16 +210,15 @@ function Register() {
                 placeholder="10-digit mobile number"
                 value={formData.phone}
                 onChange={handleChange}
+                autoComplete="tel"
                 required
+                disabled={loading}
               />
 
               {errors.phone && (
-                <p className="form-error">
-                  {errors.phone}
-                </p>
+                <p className="form-error">{errors.phone}</p>
               )}
             </div>
-
           </div>
 
           <label htmlFor="email">Email address</label>
@@ -174,13 +230,14 @@ function Register() {
             placeholder="you@example.com"
             value={formData.email}
             onChange={handleChange}
+            autoComplete="email"
+            maxLength={254}
             required
+            disabled={loading}
           />
 
           {errors.email && (
-            <p className="form-error">
-              {errors.email}
-            </p>
+            <p className="form-error">{errors.email}</p>
           )}
 
           <label htmlFor="password">Create password</label>
@@ -192,8 +249,10 @@ function Register() {
             placeholder="Create a strong password"
             value={formData.password}
             onChange={handleChange}
+            autoComplete="new-password"
             minLength={8}
             required
+            disabled={loading}
           />
 
           <p className="password-hint">
@@ -202,19 +261,17 @@ function Register() {
           </p>
 
           {errors.password && (
-            <p className="form-error">
-              {errors.password}
-            </p>
+            <p className="form-error">{errors.password}</p>
           )}
 
           {errors.general && (
-            <p className="form-error">
+            <p className="form-error" role="alert">
               {errors.general}
             </p>
           )}
 
           {success && (
-            <p className="form-success">
+            <p className="form-success" role="status">
               {success}
             </p>
           )}
@@ -228,7 +285,6 @@ function Register() {
               ? "Creating account..."
               : "Create Patient Account"}
           </button>
-
         </form>
 
         <p className="auth-switch">
@@ -236,11 +292,11 @@ function Register() {
           <button
             type="button"
             onClick={() => navigate("/login")}
+            disabled={loading}
           >
             Sign in
           </button>
         </p>
-
       </section>
     </main>
   );

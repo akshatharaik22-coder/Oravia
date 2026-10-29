@@ -1,3 +1,4 @@
+
 const mongoose = require("mongoose");
 
 const appointmentSchema = new mongoose.Schema(
@@ -6,51 +7,71 @@ const appointmentSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      index: true,
     },
 
     patientName: {
       type: String,
       required: true,
+      trim: true,
     },
 
     phone: {
       type: String,
       required: true,
+      trim: true,
     },
 
     email: {
       type: String,
       required: true,
+      trim: true,
+      lowercase: true,
     },
 
     treatment: {
       type: String,
       required: true,
+      trim: true,
     },
 
     appointmentDate: {
       type: Date,
       required: true,
+      validate: {
+        validator: (value) =>
+          value instanceof Date && !Number.isNaN(value.getTime()),
+        message: "Please provide a valid appointment date",
+      },
     },
 
     appointmentTime: {
       type: String,
       required: true,
+      trim: true,
     },
 
     symptoms: {
       type: String,
       default: "",
+      trim: true,
     },
 
     status: {
       type: String,
-      enum: ["Pending", "Confirmed", "Completed", "Cancelled"],
+      enum: [
+        "Pending",
+        "Confirmed",
+        "Completed",
+        "Cancelled",
+      ],
       default: "Pending",
     },
+
     tokenNumber: {
       type: Number,
       default: null,
+      min: 1,
     },
 
     queueStatus: {
@@ -64,10 +85,12 @@ const appointmentSchema = new mongoose.Schema(
       ],
       default: "Waiting",
     },
+
     arrivalTime: {
       type: Date,
       default: null,
     },
+
     calledTime: {
       type: Date,
       default: null,
@@ -82,6 +105,7 @@ const appointmentSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+
     cancelledBy: {
       type: String,
       enum: ["patient", "admin"],
@@ -93,4 +117,19 @@ const appointmentSchema = new mongoose.Schema(
   }
 );
 
-module.exports = mongoose.model("Appointment", appointmentSchema);
+// Efficient patient-specific appointment queries,
+// including the patient's dashboard.
+appointmentSchema.index({
+  patient: 1,
+  appointmentDate: 1,
+});
+
+// Efficient admin appointment listing.
+appointmentSchema.index({
+  createdAt: -1,
+});
+
+module.exports = mongoose.model(
+  "Appointment",
+  appointmentSchema
+);

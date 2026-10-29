@@ -1,0 +1,150 @@
+.oravia-header {
+  min-height: 84px;
+  padding: 16px 7%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  background: #f8f7f1;
+  border-bottom: 1px solid #e7e8df;
+  font-family: "DM Sans", sans-serif;
+}
+
+.oravia-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #183f35;
+  text-align: left;
+  cursor: pointer;
+}
+
+.oravia-brand-mark {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid #183f35;
+  border-radius: 50%;
+  font-family: "Manrope", sans-serif;
+  font-size: 24px;
+}
+
+.oravia-brand-text {
+  display: flex;
+  flex-direction: column;
+  font-family: "Manrope", sans-serif;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: 1.4px;
+}
+
+.oravia-brand-text small {
+  margin-top: 3px;
+  font-family: "DM Sans", sans-serif;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 1.3px;
+}
+
+.oravia-navigation,
+.oravia-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+}
+
+.oravia-navigation button,
+.oravia-signin {
+  padding: 9px 0;
+  border: none;
+  background: transparent;
+  color: #58665e;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.oravia-navigation button.active {
+  color: #183f35;
+  box-shadow: inset 0 -2px #183f35;
+}
+
+.oravia-navigation button:hover,
+.oravia-signin:hover {
+  color: #183f35;
+}
+
+.oravia-book-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  border: 1px solid #183f35;
+  border-radius: 4px;
+  background: #183f35;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.oravia-book-button:hover {
+  background: #245447;
+}
+
+@media (max-width: 760px) {
+  .oravia-header {
+    padding: 17px 5%;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .oravia-brand-mark {
+    width: 36px;
+    height: 36px;
+    font-size: 21px;
+  }
+
+  .oravia-brand-text {
+    font-size: 18px;
+  }
+
+  .oravia-navigation {
+    order: 3;
+    width: 100%;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .oravia-header-actions {
+    gap: 12px;
+    margin-left: auto;
+  }
+
+  .oravia-book-button {
+    padding: 12px;
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 420px) {
+  .oravia-navigation button {
+    font-size: 12px;
+  }
+
+  .oravia-signin {
+    font-size: 11px;
+  }
+
+  .oravia-book-button {
+    gap: 5px;
+  }
+
+  .oravia-book-button span {
+    display: none;
+  }
+}

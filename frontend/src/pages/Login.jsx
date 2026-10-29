@@ -1,6 +1,8 @@
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import API_BASE_URL from "../config/api.js";
 
 function Login() {
   const navigate = useNavigate();
@@ -27,28 +29,75 @@ function Login() {
   const handleSubmit = async (event) => {
     event.preventDefault();
 
+    if (loading) return;
+
     setError("");
+    setLoading(true);
 
     try {
-      setLoading(true);
-
       const response = await axios.post(
-        "http://localhost:5000/api/auth/login",
-        formData
+        `${API_BASE_URL}/api/auth/login`,
+        {
+          email: formData.email.trim().toLowerCase(),
+          password: formData.password,
+        },
+        {
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          timeout: 15000,
+        }
       );
 
-      localStorage.setItem("oraviaToken", response.data.token);
-      localStorage.setItem(
-        "oraviaUser",
-        JSON.stringify(response.data.user)
-      );
+      const { token, user } = response.data || {};
 
-      navigate("/dashboard");
+      // Do not create a session from an incomplete response.
+      if (
+        typeof token !== "string" ||
+        !token ||
+        !user ||
+        typeof user !== "object" ||
+        user.role !== "patient"
+      ) {
+        throw new Error(
+          "The server returned an invalid patient login response."
+        );
+      }
+
+      // Keep patient and admin sessions separate.
+      // Do not retain a previous admin session after patient login.
+      localStorage.removeItem("oraviaAdminToken");
+      localStorage.removeItem("oraviaAdminUser");
+
+      localStorage.setItem("oraviaToken", token);
+      localStorage.setItem("oraviaUser", JSON.stringify(user));
+
+      navigate("/dashboard", { replace: true });
     } catch (error) {
-      setError(
-        error.response?.data?.message ||
-          "Login failed. Please try again."
+      console.error(
+        "Patient login error:",
+        error.response?.status || error.message
       );
+
+      if (error.response) {
+        setError(
+          error.response.data?.message ||
+            "Login failed. Please check your credentials."
+        );
+      } else if (error.code === "ECONNABORTED") {
+        setError(
+          "The server took too long to respond. Please try again."
+        );
+      } else if (error.response === undefined && error.message) {
+        setError(
+          error.message.includes("invalid patient login response")
+            ? error.message
+            : "Unable to connect to the server. Please try again."
+        );
+      } else {
+        setError("Login failed. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -76,7 +125,10 @@ function Login() {
             placeholder="you@example.com"
             value={formData.email}
             onChange={handleChange}
+            autoComplete="email"
+            maxLength={254}
             required
+            disabled={loading}
           />
 
           <label htmlFor="password">Password</label>
@@ -88,11 +140,13 @@ function Login() {
             placeholder="Enter your password"
             value={formData.password}
             onChange={handleChange}
+            autoComplete="current-password"
             required
+            disabled={loading}
           />
 
           {error && (
-            <p className="form-error">
+            <p className="form-error" role="alert">
               {error}
             </p>
           )}
@@ -108,7 +162,11 @@ function Login() {
 
         <p className="auth-switch">
           New to ORAVIA?{" "}
-          <button onClick={() => navigate("/register")}>
+          <button
+            type="button"
+            onClick={() => navigate("/register")}
+            disabled={loading}
+          >
             Create an account
           </button>
         </p>

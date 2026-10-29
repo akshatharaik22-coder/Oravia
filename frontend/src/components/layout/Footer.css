@@ -1,0 +1,76 @@
+.oravia-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding: 28px 7%;
+  background: #f2f1e9;
+  color: #183f35;
+  font-family: "DM Sans", sans-serif;
+}
+
+.oravia-footer-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #183f35;
+  font-family: "Manrope", sans-serif;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  cursor: pointer;
+}
+
+.oravia-footer-mark {
+  width: 33px;
+  height: 33px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #183f35;
+  border-radius: 50%;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.oravia-footer > p {
+  margin: 0;
+  color: #69766f;
+  font-size: 11px;
+}
+
+.oravia-footer-links {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 17px;
+}
+
+.oravia-footer-links button {
+  padding: 6px 0;
+  border: none;
+  background: transparent;
+  color: #58665e;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.oravia-footer-links button:hover {
+  color: #183f35;
+}
+
+.oravia-footer-copyright {
+  color: #7b877e;
+  font-size: 10px;
+}
+
+@media (max-width: 760px) {
+  .oravia-footer {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 26px 5%;
+  }
+}

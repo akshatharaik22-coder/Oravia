@@ -12,6 +12,8 @@ import AdminLogin from "./pages/AdminLogin.jsx";
 import AdminAppointments from "./pages/AdminAppointments.jsx";
 import DoctorMonitor from "./pages/DoctorMonitor.jsx";
 import AdminBilling from "./pages/AdminBilling";
+import AdminDashboard from "./pages/AdminDashboard.jsx";
+import AdminAppointments from "./pages/AdminAppointments.jsx";
 function PatientRoute({ children }) {
   const patientToken = localStorage.getItem("oraviaToken");
 
@@ -22,15 +24,7 @@ function PatientRoute({ children }) {
   return children;
 }
 
-function AdminRoute({ children }) {
-  const adminToken = localStorage.getItem("oraviaAdminToken");
 
-  if (!adminToken) {
-    return <Navigate to="/admin/login" replace />;
-  }
-
-  return children;
-}
 
 function AdminEntry() {
   const adminToken = localStorage.getItem("oraviaAdminToken");
@@ -59,7 +53,7 @@ function App() {
 
         <Route path="/booking" element={<Booking />} />
 
-        <Route path="/doctor" element={<DoctorMonitor />} />
+        
 
         {/* =========================
             PATIENT
@@ -93,13 +87,21 @@ function App() {
         />
 
         <Route
-          path="/admin/dashboard"
+        path="/admin/dashboard"
+        element={
+        <ProtectedRoute requiredRole="admin">
+        <AdminDashboard />
+        </ProtectedRoute>
+        }
+         />
+          <Route
+          path="/admin/appointments"
           element={
-           <ProtectedRoute requiredRole="admin">
-            <AdminAppointments />
-           </ProtectedRoute>
+         <ProtectedRoute requiredRole="admin">
+           <AdminAppointments />
+         </ProtectedRoute>
           }
-        />
+           />
         <Route
           path="/admin/doctor-monitor"
           element={
