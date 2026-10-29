@@ -1,4 +1,9 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import {
+  BrowserRouter,
+  Navigate,
+  Route,
+  Routes,
+} from "react-router-dom";
 
 import Home from "./pages/Home.jsx";
 import Services from "./pages/Services.jsx";
@@ -6,25 +11,15 @@ import Clinics from "./pages/Clinics.jsx";
 import Booking from "./pages/Booking.jsx";
 import Login from "./pages/Login.jsx";
 import Register from "./pages/Register.jsx";
+
 import PatientDashboard from "./pages/PatientDashboard.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
+
 import AdminLogin from "./pages/AdminLogin.jsx";
-import AdminAppointments from "./pages/AdminAppointments.jsx";
-import DoctorMonitor from "./pages/DoctorMonitor.jsx";
-import AdminBilling from "./pages/AdminBilling";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
 import AdminAppointments from "./pages/AdminAppointments.jsx";
-function PatientRoute({ children }) {
-  const patientToken = localStorage.getItem("oraviaToken");
-
-  if (!patientToken) {
-    return <Navigate to="/login" replace />;
-  }
-
-  return children;
-}
-
-
+import DoctorMonitor from "./pages/DoctorMonitor.jsx";
+import AdminBilling from "./pages/AdminBilling.jsx";
 
 function AdminEntry() {
   const adminToken = localStorage.getItem("oraviaAdminToken");
@@ -40,28 +35,44 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-
         {/* =========================
-            PUBLIC ORAVIA
+            PUBLIC ORAVIA PAGES
         ========================== */}
 
         <Route path="/" element={<Home />} />
 
-        <Route path="/services" element={<Services />} />
+        <Route
+          path="/services"
+          element={<Services />}
+        />
 
-        <Route path="/clinics" element={<Clinics />} />
+        <Route
+          path="/clinics"
+          element={<Clinics />}
+        />
 
-        <Route path="/booking" element={<Booking />} />
-
-        
+        <Route
+          path="/booking"
+          element={<Booking />}
+        />
 
         {/* =========================
-            PATIENT
+            PATIENT AUTHENTICATION
         ========================== */}
 
-        <Route path="/login" element={<Login />} />
+        <Route
+          path="/login"
+          element={<Login />}
+        />
 
-        <Route path="/register" element={<Register />} />
+        <Route
+          path="/register"
+          element={<Register />}
+        />
+
+        {/* =========================
+            PATIENT DASHBOARD
+        ========================== */}
 
         <Route
           path="/dashboard"
@@ -73,7 +84,7 @@ function App() {
         />
 
         {/* =========================
-            ADMIN
+            ADMIN ENTRY AND LOGIN
         ========================== */}
 
         <Route
@@ -86,37 +97,58 @@ function App() {
           element={<AdminLogin />}
         />
 
+        {/* =========================
+            ADMIN DASHBOARD
+        ========================== */}
+
         <Route
-        path="/admin/dashboard"
-        element={
-        <ProtectedRoute requiredRole="admin">
-        <AdminDashboard />
-        </ProtectedRoute>
-        }
-         />
-          <Route
+          path="/admin/dashboard"
+          element={
+            <ProtectedRoute requiredRole="admin">
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* =========================
+            ADMIN APPOINTMENTS
+        ========================== */}
+
+        <Route
           path="/admin/appointments"
           element={
-         <ProtectedRoute requiredRole="admin">
-           <AdminAppointments />
-         </ProtectedRoute>
+            <ProtectedRoute requiredRole="admin">
+              <AdminAppointments />
+            </ProtectedRoute>
           }
-           />
+        />
+
+        {/* =========================
+            DOCTOR MONITOR
+        ========================== */}
+
         <Route
           path="/admin/doctor-monitor"
           element={
-           <ProtectedRoute requiredRole="admin">
-            <DoctorMonitor />
-           </ProtectedRoute>
-           }
+            <ProtectedRoute requiredRole="admin">
+              <DoctorMonitor />
+            </ProtectedRoute>
+          }
         />
+
+        {/* =========================
+            BILLING AND PAYMENTS
+        ========================== */}
+
         <Route
-        path="/admin/billing"
-        element={
-        <ProtectedRoute requiredRole="admin">
-        <AdminBilling />
-        </ProtectedRoute>}  
+          path="/admin/billing"
+          element={
+            <ProtectedRoute requiredRole="admin">
+              <AdminBilling />
+            </ProtectedRoute>
+          }
         />
+
         {/* =========================
             FALLBACK
         ========================== */}
@@ -125,7 +157,6 @@ function App() {
           path="*"
           element={<Navigate to="/" replace />}
         />
-
       </Routes>
     </BrowserRouter>
   );

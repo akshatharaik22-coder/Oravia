@@ -1,424 +1,264 @@
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import "./Home.css";
 
 const services = [
   {
     number: "01",
-    icon: "✦",
-    title: "General Dentistry",
+    title: "General dentistry",
     description:
-      "Routine checkups, professional cleaning, and preventive dental care.",
+      "Routine examinations and practical guidance to help you maintain a healthy smile.",
+    tag: "Everyday care",
   },
   {
     number: "02",
-    icon: "◇",
-    title: "Cosmetic Dentistry",
+    title: "Cleaning and prevention",
     description:
-      "Enhance your smile with personalized cosmetic dental treatments.",
+      "Professional cleaning and preventive care focused on comfort and long-term oral health.",
+    tag: "Prevention first",
   },
   {
     number: "03",
-    icon: "⌘",
-    title: "Dental Implants",
+    title: "Cosmetic dentistry",
     description:
-      "Explore restorative options designed to support your oral health.",
+      "Explore treatment options designed around your smile, needs, and goals.",
+    tag: "Your smile",
   },
   {
     number: "04",
-    icon: "✳",
-    title: "Teeth Whitening",
+    title: "Restorative care",
     description:
-      "Discover professional whitening options for a brighter smile.",
+      "Discuss options for restoring comfort, function, and confidence in your teeth.",
+    tag: "Personalized plans",
   },
 ];
 
-const benefits = [
+const careSteps = [
   {
     number: "01",
-    title: "Care that feels personal",
-    description:
-      "Every treatment begins with understanding your concerns and goals.",
+    title: "Book a visit",
+    description: "Choose a convenient appointment date and time online.",
   },
   {
     number: "02",
-    title: "Your time matters",
-    description:
-      "Request appointments online and keep track of your upcoming visits.",
+    title: "Meet your care team",
+    description: "Talk through your concerns and the care that suits you.",
   },
   {
     number: "03",
-    title: "Your care, connected",
-    description:
-      "Access your appointments and available dental records through your patient account.",
+    title: "Keep track of your care",
+    description: "Sign in to review your appointments and their current status.",
   },
 ];
 
 function Home() {
-  const navigate = useNavigate();
-
   return (
-    <div className="oravia-home">
-      {/* Navigation */}
-      <header className="oravia-header">
-        <nav className="oravia-nav">
-          <button
-            className="oravia-brand"
-            onClick={() => navigate("/")}
-            aria-label="ORAVIA home"
-          >
-            <span className="oravia-brand-mark">O</span>
-            <span>
+    <main className="oravia-home">
+      <header className="oh-header">
+        <div className="oh-header-inner">
+          <Link className="oh-brand" to="/" aria-label="ORAVIA home">
+            <span className="oh-brand-mark" aria-hidden="true">
+              O
+            </span>
+            <span className="oh-brand-copy">
               <strong>ORAVIA</strong>
               <small>DENTAL CARE</small>
             </span>
-          </button>
+          </Link>
 
-          <div className="oravia-nav-links">
-            <button onClick={() => navigate("/")}>Home</button>
-            <button onClick={() => navigate("/services")}>
-              Services
-            </button>
-            <button onClick={() => navigate("/clinics")}>
-              Our Clinics
-            </button>
-          </div>
+          <nav className="oh-nav" aria-label="Main navigation">
+            <Link className="is-active" to="/" aria-current="page">
+              Home
+            </Link>
+            <Link to="/services">Services</Link>
+            <Link to="/clinics">Our clinic</Link>
+          </nav>
 
-          <div className="oravia-nav-actions">
-            <button
-              className="oravia-login"
-              onClick={() => navigate("/login")}
-            >
-              Sign in
-            </button>
-
-            <button
-              className="oravia-button oravia-button-small"
-              onClick={() => navigate("/booking")}
-            >
+          <div className="oh-header-actions">
+            <Link className="oh-sign-in" to="/login">
+              Patient sign in
+            </Link>
+            <Link className="oh-button oh-button-small" to="/booking">
               Book a visit <span aria-hidden="true">↗</span>
-            </button>
+            </Link>
           </div>
-        </nav>
+        </div>
       </header>
 
-      <main>
-        {/* Hero */}
-        <section className="oravia-hero">
-          <div className="oravia-hero-copy">
-            <div className="oravia-eyebrow">
-              <span className="oravia-status-dot" />
-              A BETTER KIND OF DENTAL CARE
-            </div>
-
-            <h1>
-              A healthier smile.
-              <br />
-              <span>A happier you.</span>
-            </h1>
-
-            <p className="oravia-hero-description">
-              Thoughtful dental care, a comfortable experience,
-              and a smile you feel confident sharing.
-              Your journey to better oral health starts here.
-            </p>
-
-            <div className="oravia-hero-actions">
-              <button
-                className="oravia-button"
-                onClick={() => navigate("/booking")}
-              >
-                Book an appointment <span aria-hidden="true">↗</span>
-              </button>
-
-              <button
-                className="oravia-text-button"
-                onClick={() => navigate("/services")}
-              >
-                Explore our services <span aria-hidden="true">→</span>
-              </button>
-            </div>
-
-            <div className="oravia-trust">
-              <div className="oravia-trust-icon" aria-hidden="true">
-                ✓
-              </div>
-              <div>
-                <strong>Care built around you</strong>
-                <span>From your first visit to every smile after.</span>
-              </div>
-            </div>
+      <section className="oh-hero" aria-labelledby="oh-hero-title">
+        <div className="oh-hero-content">
+          <p className="oh-eyebrow">
+            <span className="oh-eyebrow-dot" aria-hidden="true" />
+            Thoughtful dental care, centered on you
+          </p>
+          <h1 id="oh-hero-title">
+            A healthier smile.
+            <br />
+            <em>A more confident you.</em>
+          </h1>
+          <p className="oh-hero-description">
+            Dental care should feel clear, comfortable, and personal. ORAVIA helps
+            you take the next step with convenient appointments and a simpler way
+            to keep track of your care.
+          </p>
+          <div className="oh-hero-actions">
+            <Link className="oh-button" to="/booking">
+              Book an appointment <span aria-hidden="true">↗</span>
+            </Link>
+            <Link className="oh-text-link" to="/services">
+              Explore our services <span aria-hidden="true">→</span>
+            </Link>
           </div>
-
-          <div className="oravia-hero-visual">
-            <div className="oravia-image-frame">
-              <img
-                src="https://images.unsplash.com/photo-1606811971618-4486d14f3f99?auto=format&fit=crop&w=1100&q=85"
-                alt="A bright, modern dental treatment room"
-              />
-
-              <div className="oravia-image-overlay">
-                <span className="oravia-image-label">
-                  YOUR SMILE, OUR PRIORITY
-                </span>
-              </div>
-            </div>
-
-            <div className="oravia-floating-card">
-              <span className="oravia-floating-icon" aria-hidden="true">
-                ✧
-              </span>
-              <div>
-                <strong>Made for your comfort</strong>
-                <span>Care at your own pace.</span>
-              </div>
-            </div>
-
-            <div className="oravia-hero-decoration" aria-hidden="true">
-              +
-            </div>
-          </div>
-        </section>
-
-        {/* Introduction strip */}
-        <section className="oravia-intro-strip">
-          <div>
-            <span className="oravia-strip-number">01 /</span>
-            <span>Preventive care</span>
-          </div>
-
-          <div>
-            <span className="oravia-strip-number">02 /</span>
-            <span>Personal attention</span>
-          </div>
-
-          <div>
-            <span className="oravia-strip-number">03 /</span>
-            <span>Connected care</span>
-          </div>
-
-          <div>
-            <span className="oravia-strip-number">04 /</span>
-            <span>Confident smiles</span>
-          </div>
-        </section>
-
-        {/* Services */}
-        <section className="oravia-section oravia-services">
-          <div className="oravia-section-heading">
-            <div>
-              <p className="oravia-eyebrow">HOW WE CAN HELP</p>
-              <h2>
-                Care for every
-                <br />
-                <span>kind of smile.</span>
-              </h2>
-            </div>
-
-            <div className="oravia-section-aside">
-              <p>
-                From everyday dental health to specialized
-                treatments, find the care that works for you.
-              </p>
-
-              <button
-                className="oravia-text-button"
-                onClick={() => navigate("/services")}
-              >
-                View all services <span aria-hidden="true">→</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="oravia-service-grid">
-            {services.map((service) => (
-              <article
-                className="oravia-service-card"
-                key={service.number}
-              >
-                <div className="oravia-service-top">
-                  <span className="oravia-service-icon">
-                    {service.icon}
-                  </span>
-                  <span className="oravia-service-number">
-                    {service.number}
-                  </span>
-                </div>
-
-                <h3>{service.title}</h3>
-
-                <p>{service.description}</p>
-
-                <button
-                  className="oravia-card-link"
-                  onClick={() => navigate("/booking")}
-                  aria-label={`Book an appointment for ${service.title}`}
-                >
-                  <span>Book a visit</span>
-                  <span aria-hidden="true">↗</span>
-                </button>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        {/* Patient experience */}
-        <section className="oravia-experience">
-          <div className="oravia-experience-visual">
-            <img
-              src="https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&w=1000&q=85"
-              alt="A welcoming contemporary dental clinic"
-              loading="lazy"
-            />
-
-            <div className="oravia-experience-caption">
-              <span>GOOD CARE STARTS HERE</span>
-              <strong>Feel comfortable. Feel cared for.</strong>
-            </div>
-          </div>
-
-          <div className="oravia-experience-copy">
-            <p className="oravia-eyebrow">THE ORAVIA EXPERIENCE</p>
-
-            <h2>
-              Dental care,
-              <br />
-              <span>with you in mind.</span>
-            </h2>
-
-            <p className="oravia-experience-description">
-              Visiting the dentist should feel straightforward.
-              We bring your appointments and available care
-              information together to help you stay informed
-              throughout your dental journey.
-            </p>
-
-            <div className="oravia-benefits">
-              {benefits.map((benefit) => (
-                <article
-                  className="oravia-benefit"
-                  key={benefit.number}
-                >
-                  <span className="oravia-benefit-number">
-                    {benefit.number}
-                  </span>
-
-                  <div>
-                    <h3>{benefit.title}</h3>
-                    <p>{benefit.description}</p>
-                  </div>
-                </article>
-              ))}
-            </div>
-
-            <button
-              className="oravia-button"
-              onClick={() => navigate("/register")}
-            >
-              Get started <span aria-hidden="true">↗</span>
-            </button>
-          </div>
-        </section>
-
-        {/* Booking call to action */}
-        <section className="oravia-booking-cta">
-          <div className="oravia-cta-content">
-            <p className="oravia-eyebrow">YOUR NEXT CHAPTER STARTS HERE</p>
-
-            <h2>
-              Ready to put your
-              <br />
-              <span>smile first?</span>
-            </h2>
-
-            <p>
-              Take the first step toward better dental care.
-              Request an appointment with ORAVIA today.
-            </p>
-
-            <button
-              className="oravia-button oravia-button-light"
-              onClick={() => navigate("/booking")}
-            >
-              Schedule your visit <span aria-hidden="true">↗</span>
-            </button>
-          </div>
-
-          <div className="oravia-cta-decoration" aria-hidden="true">
-            <span />
-            <span />
-            <span />
-          </div>
-        </section>
-      </main>
-
-      {/* Footer */}
-      <footer className="oravia-footer">
-        <div className="oravia-footer-main">
-          <div className="oravia-footer-brand">
-            <button
-              className="oravia-brand"
-              onClick={() => navigate("/")}
-              aria-label="ORAVIA home"
-            >
-              <span className="oravia-brand-mark">O</span>
-              <span>
-                <strong>ORAVIA</strong>
-                <small>DENTAL CARE</small>
-              </span>
-            </button>
-
-            <p>
-              A thoughtful approach to dental care,
-              built around your smile.
-            </p>
-          </div>
-
-          <div className="oravia-footer-column">
-            <h3>Explore</h3>
-            <button onClick={() => navigate("/services")}>
-              Services
-            </button>
-            <button onClick={() => navigate("/clinics")}>
-              Our clinics
-            </button>
-            <button onClick={() => navigate("/booking")}>
-              Appointments
-            </button>
-          </div>
-
-          <div className="oravia-footer-column">
-            <h3>Your account</h3>
-            <button onClick={() => navigate("/login")}>
-              Patient sign in
-            </button>
-            <button onClick={() => navigate("/register")}>
-              Create an account
-            </button>
-            <button onClick={() => navigate("/admin/login")}>
-              Staff sign in
-            </button>
-          </div>
-
-          <div className="oravia-footer-column">
-            <h3>Start here</h3>
-            <p>
-              Your next dental visit is just a few steps away.
-            </p>
-            <button
-              className="oravia-footer-cta"
-              onClick={() => navigate("/booking")}
-            >
-              Book a visit ↗
-            </button>
+          <div className="oh-hero-note">
+            <span className="oh-note-icon" aria-hidden="true">✳</span>
+            <span>Care plans explained clearly, one step at a time.</span>
           </div>
         </div>
 
-        <div className="oravia-footer-bottom">
+        <div className="oh-hero-art" aria-label="Illustration of a calm, welcoming dental care space" role="img">
+          <div className="oh-art-orbit oh-art-orbit-one" />
+          <div className="oh-art-orbit oh-art-orbit-two" />
+          <div className="oh-art-sun" />
+          <div className="oh-art-leaf oh-art-leaf-one" />
+          <div className="oh-art-leaf oh-art-leaf-two" />
+          <div className="oh-art-leaf oh-art-leaf-three" />
+          <div className="oh-art-tooth">
+            <svg viewBox="0 0 180 210" aria-hidden="true">
+              <path d="M49 23C32 23 20 37 21 58c1 20 12 33 17 51 4 13 8 31 18 45 7 11 14 9 17-4l9-37c2-8 5-11 8-11s6 3 8 11l9 37c3 13 10 15 17 4 10-14 14-32 18-45 5-18 16-31 17-51 1-21-11-35-28-35-13 0-26 8-41 8S62 23 49 23Z" fill="currentColor" />
+              <path d="M53 40c-9 0-16 9-15 21 1 11 5 18 9 27" fill="none" stroke="#ffffff" strokeLinecap="round" strokeWidth="5" opacity=".8" />
+            </svg>
+          </div>
+          <div className="oh-art-caption">
+            <span className="oh-caption-mark" aria-hidden="true">✦</span>
+            <span><strong>Your smile, your pace.</strong><small>Care that starts with listening.</small></span>
+          </div>
+          <span className="oh-art-spark oh-spark-one" aria-hidden="true">✳</span>
+          <span className="oh-art-spark oh-spark-two" aria-hidden="true">✦</span>
+        </div>
+      </section>
+
+      <section className="oh-trust-strip" aria-label="ORAVIA care principles">
+        <div><span className="oh-trust-symbol" aria-hidden="true">◷</span><span><strong>Convenient booking</strong><small>Request a visit online</small></span></div>
+        <div><span className="oh-trust-symbol" aria-hidden="true">♡</span><span><strong>Care with clarity</strong><small>Understand your next steps</small></span></div>
+        <div><span className="oh-trust-symbol" aria-hidden="true">◎</span><span><strong>Your own dashboard</strong><small>Track your appointments</small></span></div>
+      </section>
+
+      <section className="oh-services section-shell" aria-labelledby="oh-services-title">
+        <div className="oh-section-heading">
+          <div>
+            <p className="oh-eyebrow">Care for every stage</p>
+            <h2 id="oh-services-title">Good oral health begins <em>with good care.</em></h2>
+          </div>
+          <Link className="oh-text-link" to="/services">
+            View all services <span aria-hidden="true">→</span>
+          </Link>
+        </div>
+        <div className="oh-service-grid">
+          {services.map((service) => (
+            <article className="oh-service-card" key={service.number}>
+              <div className="oh-service-card-top">
+                <span className="oh-service-number">{service.number}</span>
+                <span className="oh-service-arrow" aria-hidden="true">↗</span>
+              </div>
+              <p className="oh-service-tag">{service.tag}</p>
+              <h3>{service.title}</h3>
+              <p className="oh-service-description">{service.description}</p>
+              <Link className="oh-card-link" to="/booking" aria-label={`Book an appointment for ${service.title}`}>
+                Book a visit <span aria-hidden="true">→</span>
+              </Link>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="oh-experience" aria-labelledby="oh-experience-title">
+        <div className="oh-experience-inner">
+          <div className="oh-experience-art" aria-hidden="true">
+            <div className="oh-experience-circle">
+              <div className="oh-experience-cross">+</div>
+              <div className="oh-experience-line oh-line-one" />
+              <div className="oh-experience-line oh-line-two" />
+              <div className="oh-experience-dot oh-dot-one" />
+              <div className="oh-experience-dot oh-dot-two" />
+              <div className="oh-experience-dot oh-dot-three" />
+            </div>
+            <span className="oh-experience-sticker">CARE, MADE CLEAR</span>
+          </div>
+          <div className="oh-experience-copy">
+            <p className="oh-eyebrow">A more considered experience</p>
+            <h2 id="oh-experience-title">Dental care that respects <em>your time and comfort.</em></h2>
+            <p>
+              From scheduling your appointment to checking its status, ORAVIA is
+              designed to make the practical parts of dental care easier to
+              understand. Your treatment options should always be discussed with
+              your dental professional.
+            </p>
+            <Link className="oh-button oh-button-light" to="/clinics">
+              Get to know our clinic <span aria-hidden="true">↗</span>
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <section className="oh-steps section-shell" aria-labelledby="oh-steps-title">
+        <div className="oh-section-heading oh-steps-heading">
+          <div>
+            <p className="oh-eyebrow">Your visit, made simple</p>
+            <h2 id="oh-steps-title">Three steps to get <em>started.</em></h2>
+          </div>
+          <p className="oh-section-intro">Start online, then let your care team guide you through the rest.</p>
+        </div>
+        <div className="oh-step-grid">
+          {careSteps.map((step) => (
+            <article className="oh-step" key={step.number}>
+              <span className="oh-step-number">{step.number}</span>
+              <h3>{step.title}</h3>
+              <p>{step.description}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="oh-booking-cta" aria-labelledby="oh-cta-title">
+        <div className="oh-cta-decoration oh-cta-decoration-one" aria-hidden="true" />
+        <div className="oh-cta-decoration oh-cta-decoration-two" aria-hidden="true" />
+        <div className="oh-cta-content">
+          <p className="oh-eyebrow">Whenever you're ready</p>
+          <h2 id="oh-cta-title">Make room for <em>your smile.</em></h2>
+          <p>Take the first step toward your next dental visit.</p>
+          <Link className="oh-button oh-button-light" to="/booking">
+            Schedule an appointment <span aria-hidden="true">↗</span>
+          </Link>
+        </div>
+      </section>
+
+      <footer className="oh-footer">
+        <div className="oh-footer-main">
+          <div className="oh-footer-brand-block">
+            <Link className="oh-brand oh-brand-footer" to="/" aria-label="ORAVIA home">
+              <span className="oh-brand-mark" aria-hidden="true">O</span>
+              <span className="oh-brand-copy"><strong>ORAVIA</strong><small>DENTAL CARE</small></span>
+            </Link>
+            <p>Thoughtful dental care, with a clearer way to manage your visits.</p>
+          </div>
+          <div className="oh-footer-column">
+            <h3>Explore</h3>
+            <Link to="/">Home</Link>
+            <Link to="/services">Services</Link>
+            <Link to="/clinics">Our clinic</Link>
+          </div>
+          <div className="oh-footer-column">
+            <h3>Appointments</h3>
+            <Link to="/booking">Book a visit</Link>
+            <Link to="/login">Patient sign in</Link>
+            <Link to="/admin/login">Staff sign in</Link>
+          </div>
+        </div>
+        <div className="oh-footer-bottom">
           <span>© {new Date().getFullYear()} ORAVIA Dental Care</span>
-          <span>Designed around your smile.</span>
+          <span>Care starts with a conversation.</span>
         </div>
       </footer>
-    </div>
+    </main>
   );
 }
 

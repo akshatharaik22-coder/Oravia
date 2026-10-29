@@ -1,7 +1,16 @@
-
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import axios from "axios";
-import { Link, NavLink, useNavigate } from "react-router-dom";
+import {
+  Link,
+  NavLink,
+  useNavigate,
+} from "react-router-dom";
+
 import API_BASE_URL from "../config/api.js";
 import "./Admindashboard.css";
 
@@ -35,7 +44,9 @@ const formatDate = (value) => {
 
   const date = new Date(value);
 
-  if (Number.isNaN(date.getTime())) return "—";
+  if (Number.isNaN(date.getTime())) {
+    return "—";
+  }
 
   return date.toLocaleDateString("en-IN", {
     day: "2-digit",
@@ -49,7 +60,9 @@ const formatTime = (value) => {
 
   const date = new Date(value);
 
-  if (Number.isNaN(date.getTime())) return "";
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
 
   return date.toLocaleTimeString("en-IN", {
     hour: "2-digit",
@@ -60,7 +73,10 @@ const formatTime = (value) => {
 const getId = (value) => {
   if (!value) return "";
 
-  if (typeof value === "string" || typeof value === "number") {
+  if (
+    typeof value === "string" ||
+    typeof value === "number"
+  ) {
     return String(value);
   }
 
@@ -80,21 +96,14 @@ const getPatientName = (appointment) => {
     );
   }
 
-  return (
-    appointment?.patientName ||
-    appointment?.patient?.name ||
-    "Patient"
-  );
+  return appointment?.patientName || "Patient";
 };
 
-const getPatientId = (appointment) => {
-  return (
-    getId(appointment?.patient) ||
-    getId(appointment?.patientId) ||
-    getId(appointment?.userId) ||
-    ""
-  );
-};
+const getPatientId = (appointment) =>
+  getId(appointment?.patient) ||
+  getId(appointment?.patientId) ||
+  getId(appointment?.userId) ||
+  "";
 
 const getAppointmentDate = (appointment) =>
   appointment?.appointmentDate ||
@@ -122,13 +131,20 @@ const getStatusLabel = (status) => {
     canceled: "Cancelled",
     rejected: "Rejected",
     scheduled: "Scheduled",
+    "no-show": "No show",
+    processing: "Processing",
   };
 
-  if (labels[normalized]) return labels[normalized];
+  if (labels[normalized]) {
+    return labels[normalized];
+  }
 
   return normalized
     .split("-")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .map(
+      (word) =>
+        word.charAt(0).toUpperCase() + word.slice(1)
+    )
     .join(" ");
 };
 
@@ -146,6 +162,8 @@ const getStatusClass = (status) => {
     "scheduled",
     "checked-in",
     "checked-out",
+    "no-show",
+    "processing",
   ];
 
   const safeStatus = allowedStatuses.includes(normalized)
@@ -175,17 +193,28 @@ const getErrorMessage = (error) => {
     return "Unable to connect to the server. Check your connection and try again.";
   }
 
-  return error?.message || "Unable to load dashboard information.";
+  return (
+    error?.message ||
+    "Unable to load dashboard information."
+  );
 };
 
 const getAppointmentList = (data) => {
-  if (Array.isArray(data)) return data;
+  if (Array.isArray(data)) {
+    return data;
+  }
 
-  if (Array.isArray(data?.appointments)) return data.appointments;
+  if (Array.isArray(data?.appointments)) {
+    return data.appointments;
+  }
 
-  if (Array.isArray(data?.data)) return data.data;
+  if (Array.isArray(data?.data)) {
+    return data.data;
+  }
 
-  if (Array.isArray(data?.results)) return data.results;
+  if (Array.isArray(data?.results)) {
+    return data.results;
+  }
 
   return null;
 };
@@ -199,8 +228,6 @@ function AdminDashboard() {
   const [error, setError] = useState("");
   const [lastUpdated, setLastUpdated] = useState(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-
-  const token = localStorage.getItem("oraviaAdminToken");
 
   const adminUser = useMemo(() => {
     try {
@@ -220,7 +247,8 @@ function AdminDashboard() {
 
   const fetchDashboardData = useCallback(
     async ({ silent = false } = {}) => {
-      const currentToken = localStorage.getItem("oraviaAdminToken");
+      const currentToken =
+        localStorage.getItem("oraviaAdminToken");
 
       if (!currentToken) {
         navigate("/admin/login", { replace: true });
@@ -236,12 +264,15 @@ function AdminDashboard() {
       setError("");
 
       try {
-        const response = await axios.get(`${API}/appointments`, {
-          headers: {
-            Authorization: `Bearer ${currentToken}`,
-          },
-          timeout: 20000,
-        });
+        const response = await axios.get(
+          `${API}/appointments`,
+          {
+            headers: {
+              Authorization: `Bearer ${currentToken}`,
+            },
+            timeout: 20000,
+          }
+        );
 
         const list = getAppointmentList(response.data);
 
@@ -283,6 +314,25 @@ function AdminDashboard() {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
+  useEffect(() => {
+    if (!mobileNavOpen) return undefined;
+
+    const handleEscape = (event) => {
+      if (event.key === "Escape") {
+        setMobileNavOpen(false);
+      }
+    };
+
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener(
+        "keydown",
+        handleEscape
+      );
+    };
+  }, [mobileNavOpen]);
+
   const statistics = useMemo(() => {
     const pending = appointments.filter((appointment) =>
       ["pending", "scheduled"].includes(
@@ -307,21 +357,23 @@ function AdminDashboard() {
     };
   }, [appointments]);
 
-  const recentAppointments = useMemo(() => {
-    return [...appointments]
-      .sort((a, b) => {
-        const dateA = new Date(
-          getAppointmentDate(a) || 0
-        ).getTime();
+  const recentAppointments = useMemo(
+    () =>
+      [...appointments]
+        .sort((a, b) => {
+          const dateA = new Date(
+            getAppointmentDate(a) || 0
+          ).getTime();
 
-        const dateB = new Date(
-          getAppointmentDate(b) || 0
-        ).getTime();
+          const dateB = new Date(
+            getAppointmentDate(b) || 0
+          ).getTime();
 
-        return dateB - dateA;
-      })
-      .slice(0, 6);
-  }, [appointments]);
+          return dateB - dateA;
+        })
+        .slice(0, 6),
+    [appointments]
+  );
 
   const handleLogout = () => {
     localStorage.removeItem("oraviaAdminToken");
@@ -332,24 +384,34 @@ function AdminDashboard() {
 
   const handleRefresh = () => {
     if (!loading && !refreshing) {
-      fetchDashboardData({ silent: appointments.length > 0 });
+      fetchDashboardData({
+        silent: appointments.length > 0,
+      });
     }
+  };
+
+  const closeMobileNav = () => {
+    setMobileNavOpen(false);
   };
 
   return (
     <main className="admin-dashboard">
       <aside
+        id="admin-dashboard-sidebar"
         className={`admin-dashboard-sidebar ${
           mobileNavOpen ? "is-open" : ""
         }`}
+        aria-label="Admin workspace sidebar"
       >
         <Link
           to="/admin/dashboard"
           className="admin-dashboard-brand"
           aria-label="ORAVIA admin dashboard"
-          onClick={() => setMobileNavOpen(false)}
+          onClick={closeMobileNav}
         >
-          <span className="admin-dashboard-brand-icon">O</span>
+          <span className="admin-dashboard-brand-icon">
+            O
+          </span>
 
           <span className="admin-dashboard-brand-copy">
             <strong>ORAVIA</strong>
@@ -375,8 +437,7 @@ function AdminDashboard() {
                   isActive ? "is-active" : ""
                 }`
               }
-              aria-label={item.label}
-              onClick={() => setMobileNavOpen(false)}
+              onClick={closeMobileNav}
             >
               <span
                 className="admin-dashboard-nav-icon"
@@ -419,7 +480,7 @@ function AdminDashboard() {
           type="button"
           className="admin-dashboard-mobile-overlay"
           aria-label="Close navigation"
-          onClick={() => setMobileNavOpen(false)}
+          onClick={closeMobileNav}
         />
       )}
 
@@ -432,15 +493,18 @@ function AdminDashboard() {
               aria-label={
                 mobileNavOpen ? "Close menu" : "Open menu"
               }
+              aria-controls="admin-dashboard-sidebar"
               aria-expanded={mobileNavOpen}
-              onClick={() => setMobileNavOpen((open) => !open)}
+              onClick={() =>
+                setMobileNavOpen((open) => !open)
+              }
             >
               <span />
               <span />
               <span />
             </button>
 
-            <div>
+            <div className="admin-dashboard-heading-group">
               <span className="admin-dashboard-breadcrumb">
                 WORKSPACE / OVERVIEW
               </span>
@@ -514,7 +578,10 @@ function AdminDashboard() {
               </span>
 
               <div className="admin-dashboard-alert-copy">
-                <strong>Unable to update dashboard</strong>
+                <strong>
+                  Unable to update dashboard
+                </strong>
+
                 <p>{error}</p>
               </div>
 
@@ -783,8 +850,9 @@ function AdminDashboard() {
                 aria-live="polite"
               >
                 <span className="admin-dashboard-spinner" />
-
-                <span>Loading appointment records...</span>
+                <span>
+                  Loading appointment records...
+                </span>
               </div>
             ) : recentAppointments.length === 0 ? (
               <div className="admin-dashboard-empty">
@@ -831,77 +899,84 @@ function AdminDashboard() {
                   </thead>
 
                   <tbody>
-                    {recentAppointments.map((appointment, index) => {
-                      const appointmentId =
-                        getId(appointment) ||
-                        `${getPatientName(appointment)}-${index}`;
+                    {recentAppointments.map(
+                      (appointment, index) => {
+                        const appointmentId =
+                          getId(appointment) ||
+                          `${getPatientName(appointment)}-${index}`;
 
-                      const patientName =
-                        getPatientName(appointment);
+                        const patientName =
+                          getPatientName(appointment);
 
-                      const appointmentDate =
-                        getAppointmentDate(appointment);
+                        const appointmentDate =
+                          getAppointmentDate(appointment);
 
-                      return (
-                        <tr key={appointmentId}>
-                          <td>
-                            <div className="admin-dashboard-patient">
-                              <span
-                                className="admin-dashboard-patient-avatar"
-                                aria-hidden="true"
-                              >
-                                {patientName
-                                  .charAt(0)
-                                  .toUpperCase()}
+                        const appointmentTime =
+                          formatTime(appointmentDate);
+
+                        return (
+                          <tr key={appointmentId}>
+                            <td>
+                              <div className="admin-dashboard-patient">
+                                <span
+                                  className="admin-dashboard-patient-avatar"
+                                  aria-hidden="true"
+                                >
+                                  {patientName
+                                    .charAt(0)
+                                    .toUpperCase()}
+                                </span>
+
+                                <div className="admin-dashboard-patient-copy">
+                                  <strong>{patientName}</strong>
+
+                                  <small>
+                                    {getPatientId(appointment)
+                                      ? "Registered patient"
+                                      : "Patient record"}
+                                  </small>
+                                </div>
+                              </div>
+                            </td>
+
+                            <td>
+                              <span className="admin-dashboard-treatment">
+                                {getTreatment(appointment)}
+                              </span>
+                            </td>
+
+                            <td>
+                              <span className="admin-dashboard-date">
+                                {formatDate(appointmentDate)}
                               </span>
 
-                              <div className="admin-dashboard-patient-copy">
-                                <strong>{patientName}</strong>
-
-                                <small>
-                                  {getPatientId(appointment)
-                                    ? "Registered patient"
-                                    : "Patient record"}
+                              {appointmentTime && (
+                                <small className="admin-dashboard-time">
+                                  {appointmentTime}
                                 </small>
-                              </div>
-                            </div>
-                          </td>
-
-                          <td>
-                            <span className="admin-dashboard-treatment">
-                              {getTreatment(appointment)}
-                            </span>
-                          </td>
-
-                          <td>
-                            <span className="admin-dashboard-date">
-                              {formatDate(appointmentDate)}
-                            </span>
-
-                            {formatTime(appointmentDate) && (
-                              <small className="admin-dashboard-time">
-                                {formatTime(appointmentDate)}
-                              </small>
-                            )}
-                          </td>
-
-                          <td>
-                            <span
-                              className={getStatusClass(
-                                appointment.status
                               )}
-                            >
-                              <span
-                                className="admin-dashboard-status-dot"
-                                aria-hidden="true"
-                              />
+                            </td>
 
-                              {getStatusLabel(appointment.status)}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                            <td>
+                              <span
+                                className={getStatusClass(
+                                  appointment.status
+                                )}
+                              >
+                                <span
+                                  className="admin-dashboard-status-dot"
+                                  aria-hidden="true"
+                                />
+
+                                {getStatusLabel(
+                                  appointment.status
+                                )}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      }
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -909,7 +984,10 @@ function AdminDashboard() {
           </section>
 
           <footer className="admin-dashboard-footer">
-            <span>ORAVIA · Dental Care Management</span>
+            <span>
+              ORAVIA · Dental Care Management
+            </span>
+
             <span>Administrator workspace</span>
           </footer>
         </div>
